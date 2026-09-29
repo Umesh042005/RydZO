@@ -1,19 +1,32 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { FiCheckCircle } from 'react-icons/fi';
+import { FiCheckCircle, FiNavigation, FiClock, FiMapPin, FiAlertCircle } from 'react-icons/fi';
+import { formatBookingDateTime, formatBookingTimeSlot } from '../utils/dateUtils';
+import GoogleMapView from '../components/maps/GoogleMapView';
+import OSMMapView from '../components/maps/osm/OSMMapView';
+import { calculateRouteFromCurrentLocation as googleRouteCalc } from '../services/routesService';
+import { calculateRouteFromCurrentLocation as osmRouteCalc } from '../services/osm/osmRoutesService';
+import { isOsmProvider } from '../config/mapProvider';
+
+const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
+const calculateRouteFromCurrentLocation = isOsmProvider() ? osmRouteCalc : googleRouteCalc;
 
 const BookingDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [booking, setBooking] = useState(null);
   const [agreement, setAgreement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(null);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [routeError, setRouteError] = useState(null);
   const [consentFlags, setConsentFlags] = useState({
     locationTracking: false,
     geoFencing: false,
@@ -91,6 +104,8 @@ const BookingDetails = () => {
     const seconds = totalSeconds % 60;
     return `${hours}h ${minutes}m ${seconds}s`;
   };
+
+
 
   const handleAcceptAgreement = async () => {
     try {
@@ -175,6 +190,35 @@ const BookingDetails = () => {
     }
   };
 
+  const handleCalculateRoute = async () => {
+    const coords = booking?.bike?.handoverLocation?.coordinates;
+    if (!coords || coords.lat == null || coords.lng == null) {
+      toast.error('Location coordinates not available for route calculation');
+      return;
+    }
+
+    setCalculatingRoute(true);
+    setRouteError(null);
+    try {
+      const result = await calculateRouteFromCurrentLocation({
+        lat: Number(coords.lat),
+        lng: Number(coords.lng)
+      });
+      if (result.available) {
+        setRouteInfo(result);
+        toast.success(`Distance: ${result.distance.text} • ETA: ${result.duration.text}`);
+      } else {
+        setRouteError(result.error || 'Could not calculate route');
+        toast.error(result.error || 'Could not calculate route');
+      }
+    } catch (err) {
+      setRouteError('Failed to calculate route from your location');
+      toast.error('Failed to calculate route from your location');
+    } finally {
+      setCalculatingRoute(false);
+    }
+  };
+
   const handleAuthorizeDeposit = async () => {
     try {
       setActionLoading(true);
@@ -230,6 +274,14 @@ const BookingDetails = () => {
     <div className="min-h-screen bg-neutral-50">
       <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-12">
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="mb-4 inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition-colors shadow-xs"
+          >
+            ← Back to Admin Panel
+          </button>
+        )}
         <h1 className="text-4xl font-bold mb-8 text-neutral-900">Booking Details</h1>
 
         <div className="card mb-6">
@@ -239,12 +291,73 @@ const BookingDetails = () => {
           <p className="text-neutral-600">Owner: {booking.owner?.name} ({booking.owner?.phone})</p>
         </div>
 
+        {/* Pickup / Handover Location Card */}
+        <div className="card mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <h2 className="text-2xl font-semibold flex items-center gap-2">
+              <FiMapPin className="text-primary-700" />
+              Pickup & Handover Location
+            </h2>
+            {booking.bike?.handoverLocation?.coordinates?.lat != null &&
+             booking.bike?.handoverLocation?.coordinates?.lng != null && (
+              <button
+                type="button"
+                onClick={handleCalculateRoute}
+                disabled={calculatingRoute}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors border border-primary-200 self-start sm:self-auto disabled:opacity-60"
+              >
+                <FiNavigation className="text-xs" />
+                {calculatingRoute ? 'Calculating Route...' : 'Get Directions'}
+              </button>
+            )}
+          </div>
+
+          {booking.bike?.handoverLocation?.address ? (
+            <p className="text-neutral-700 mb-3">{booking.bike.handoverLocation.address}</p>
+          ) : (
+            <p className="text-neutral-500 italic mb-3">Handover location will be coordinated directly with the owner.</p>
+          )}
+
+          {routeInfo && routeInfo.available && (
+            <div className="mb-3 p-3 bg-primary-50 border border-primary-200 rounded-lg flex flex-wrap gap-4 text-sm text-primary-900">
+              <div className="flex items-center gap-1.5">
+                <FiNavigation className="text-primary-600" />
+                <span><strong>Distance:</strong> {routeInfo.distance.text}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <FiClock className="text-primary-600" />
+                <span><strong>Est. Drive Time:</strong> {routeInfo.duration.text}</span>
+              </div>
+            </div>
+          )}
+
+          {routeError && (
+            <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+              <FiAlertCircle className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">{routeError}</p>
+                <p className="text-amber-700 mt-0.5">
+                  You can also use the external map link below to view directions directly.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <ActiveMapView
+            coordinates={booking.bike?.handoverLocation?.coordinates}
+            address={booking.bike?.handoverLocation?.address || ''}
+            directionsResult={routeInfo?.directionsResult || null}
+            height="260px"
+          />
+        </div>
+
         <div className="card mb-6">
           <h2 className="text-2xl font-semibold mb-4">Booking Information</h2>
           <div className="space-y-2">
-            <p><span className="font-semibold">Type:</span> {booking.bookingType}</p>
-            <p><span className="font-semibold">Start:</span> {new Date(booking.startTime).toLocaleString()}</p>
-            <p><span className="font-semibold">End:</span> {new Date(booking.endTime).toLocaleString()}</p>
+            <p><span className="font-semibold">Type:</span> <span className="capitalize">{booking.bookingType} Rental</span></p>
+            <p><span className="font-semibold">Start:</span> {formatBookingDateTime(booking.startTime, booking.startTimeStr)}</p>
+            <p><span className="font-semibold">End:</span> {formatBookingDateTime(booking.endTime, booking.endTimeStr)}</p>
+            <p><span className="font-semibold">Time Slot:</span> {formatBookingTimeSlot(booking.startTimeStr, booking.endTimeStr, booking.startTime, booking.endTime)}</p>
             <p><span className="font-semibold">Duration:</span> {booking.duration?.hours} hours</p>
             <p><span className="font-semibold">Total Amount:</span> ₹{booking.totalAmount}</p>
             <p><span className="font-semibold">Security Deposit:</span> ₹{booking.securityDeposit}</p>
@@ -420,13 +533,32 @@ const BookingDetails = () => {
                   disabled={actionLoading || !depositConsent.terms || !depositConsent.rules}
                   className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {actionLoading ? 'Processing...' : 'Authorize Deposit'}
+                  {actionLoading ? 'Processing...' : 'Authorize Security Deposit'}
                 </button>
               </div>
-            ) : booking.status === 'confirmed' && booking.securityDepositStatus === 'authorized' ? (
-              <div className="bg-green-50 p-4 rounded text-green-800">
-                <p className="font-semibold">Deposit Authorized!</p>
-                <p>Please meet the owner at the handover location. The owner will verify and hand over the bike.</p>
+            ) : booking.status === 'confirmed' ? (
+              <div className="bg-green-50 border border-green-200 p-4 rounded text-green-900 space-y-3">
+                <p className="font-semibold text-lg">Booking Confirmed by Owner!</p>
+                <p className="text-sm">
+                  {booking.securityDepositStatus === 'authorized' || booking.securityDepositStatus === 'collected'
+                    ? 'Security deposit is authorized. Please meet the owner for physical bike handover. The owner will start the ride once the bike is handed over.'
+                    : 'Owner has accepted your request. Please authorize the security deposit to proceed.'}
+                </p>
+                <p className="text-xs text-neutral-600 mt-1">
+                  The ride will begin only after the owner confirms physical handover and starts the ride.
+                </p>
+              </div>
+            ) : booking.status === 'ongoing' ? (
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded text-blue-900 space-y-2">
+                <p className="font-semibold text-lg">Ride is Currently Active!</p>
+                <p className="text-sm">Time Elapsed: <span className="font-mono font-bold text-primary-700">{formatDuration(elapsedMs)}</span></p>
+                <p className="text-xs text-neutral-600">Enjoy your ride! Hand over the bike to the owner at the return location once completed.</p>
+              </div>
+            ) : booking.status === 'completed' ? (
+              <div className="bg-green-50 border border-green-200 p-4 rounded text-green-900 space-y-2">
+                <p className="font-semibold text-lg">Ride Completed!</p>
+                <p className="text-sm">Total Rent: ₹{booking.finalTotalAmount || booking.totalAmount}</p>
+                <p className="text-xs text-neutral-600">Thank you for riding with RydZO.</p>
               </div>
             ) : null}
           </div>
@@ -465,17 +597,17 @@ const BookingDetails = () => {
                   </div>
                 ) : booking.securityDepositStatus === 'authorized' ? (
                   <div className="space-y-3">
-                    <p className="text-green-700 font-semibold">Customer has authorized the deposit.</p>
-
-                    {booking.securityDepositStatus !== 'collected' && (
-                      <button
-                        onClick={handleCollectDeposit}
-                        disabled={actionLoading}
-                        className="btn-primary w-full sm:w-auto"
-                      >
-                        Verify Deposit & Handover Bike
-                      </button>
-                    )}
+                    <p className="text-green-700 font-semibold">✅ Customer has authorized the security deposit.</p>
+                    <p className="text-sm text-neutral-600">
+                      Please verify the deposit amount, physically hand over the bike to the customer, and then start the ride.
+                    </p>
+                    <button
+                      onClick={handleStartRide}
+                      disabled={actionLoading}
+                      className="btn-primary w-full sm:w-auto"
+                    >
+                      {actionLoading ? 'Starting...' : 'Start Ride (Handover & Start)'}
+                    </button>
                   </div>
                 ) : booking.securityDepositStatus === 'collected' ? (
                   <div className="space-y-3">
@@ -554,6 +686,23 @@ const BookingDetails = () => {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Admin Actions */}
+        {user?.role === 'admin' && booking.status === 'confirmed' && (
+          <div className="card mb-6 border-2 border-primary-200 bg-primary-50/20">
+            <h2 className="text-xl font-bold mb-2">Admin Action</h2>
+            <p className="text-sm text-neutral-600 mb-4">
+              This booking is confirmed. You can start the ride on behalf of the users to immediately activate tracking and push it to Live Rides.
+            </p>
+            <button
+              onClick={handleStartRide}
+              disabled={actionLoading}
+              className="btn-primary"
+            >
+              {actionLoading ? 'Starting...' : 'Start Ride (Force Activate Live Ride)'}
+            </button>
           </div>
         )}
       </div>

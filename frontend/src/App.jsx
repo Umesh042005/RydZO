@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 
-// Pages
+
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,7 +18,7 @@ import OwnerBookings from './pages/OwnerBookings';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
 
-// Protected Route Component
+
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useAuth();
 
@@ -35,8 +35,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    // Redirect based on role
-    if (user.role === 'customer') {
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (user.role === 'customer') {
       return <Navigate to="/profile" replace />;
     } else if (user.role === 'owner') {
       return <Navigate to="/dashboard" replace />;
@@ -61,7 +62,7 @@ function App() {
               <Route
                 path="/dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={['owner', 'admin']}>
+                  <ProtectedRoute allowedRoles={['owner', 'customer']}>
                     <Dashboard />
                   </ProtectedRoute>
                 }

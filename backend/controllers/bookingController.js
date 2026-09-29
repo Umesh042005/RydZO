@@ -20,6 +20,21 @@ function overlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
 
+function normalizeTime12Hour(timeStr) {
+  if (!timeStr) return '';
+  const trimmed = String(timeStr).trim();
+  if (/am|pm/i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  }
+  return trimmed;
+}
+
 // @desc    Create new booking
 // @route   POST /api/bookings
 // @access  Private (Customer)
@@ -36,7 +51,7 @@ exports.createBooking = async (req, res) => {
       });
     }
 
-    const { bikeId, bookingType, startDate, endDate, startTime, endTime, handoverLocation } = req.body;
+    const { bikeId, bookingType, startDate, endDate, startTime, endTime, handoverLocation, startTimeIso, endTimeIso } = req.body;
 
     // Validation
     if (!bikeId || !bookingType || !startDate || !endDate || !startTime || !endTime) {
@@ -52,9 +67,23 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({ message: 'Bike is not available for booking' });
     }
 
-    // Calculate duration and amount
-    const start = new Date(`${startDate}T${startTime}`);
-    const end = new Date(`${endDate}T${endTime}`);
+    // Calculate duration and amount with accurate IST timezone parsing
+    let start, end;
+    if (startTimeIso) {
+      start = new Date(startTimeIso);
+    } else {
+      start = new Date(`${startDate}T${startTime}:00+05:30`);
+      if (isNaN(start.getTime())) start = new Date(`${startDate}T${startTime}+05:30`);
+      if (isNaN(start.getTime())) start = new Date(`${startDate}T${startTime}`);
+    }
+
+    if (endTimeIso) {
+      end = new Date(endTimeIso);
+    } else {
+      end = new Date(`${endDate}T${endTime}:00+05:30`);
+      if (isNaN(end.getTime())) end = new Date(`${endDate}T${endTime}+05:30`);
+      if (isNaN(end.getTime())) end = new Date(`${endDate}T${endTime}`);
+    }
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return res.status(400).json({ message: 'Invalid start/end date or time' });
     }
@@ -100,6 +129,8 @@ exports.createBooking = async (req, res) => {
       endDate: new Date(endDate),
       startTime: start,
       endTime: end,
+      startTimeStr: normalizeTime12Hour(req.body.startTimeStr || startTime),
+      endTimeStr: normalizeTime12Hour(req.body.endTimeStr || endTime),
       duration: {
         hours: durationHours,
         days: durationDays
@@ -131,6 +162,11 @@ exports.createBooking = async (req, res) => {
         customerPhone: req.user.phone,
         startTime: booking.startTime,
         endTime: booking.endTime,
+        startTimeStr: booking.startTimeStr,
+        endTimeStr: booking.endTimeStr,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        createdAt: booking.createdAt,
         duration: `${booking.duration.hours} hours`,
         securityDeposit: booking.securityDeposit,
         lateReturnPenalty: 500,
@@ -251,6 +287,36 @@ exports.getBookingById = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Ensure startTimeStr and endTimeStr exist and are formatted cleanly
+    let shouldSave = false;
+    if (!booking.startTimeStr && booking.startTime) {
+      const d = new Date(booking.startTime);
+      if (!isNaN(d.getTime())) {
+        booking.startTimeStr = d.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+        shouldSave = true;
+      }
+    }
+    if (!booking.endTimeStr && booking.endTime) {
+      const d = new Date(booking.endTime);
+      if (!isNaN(d.getTime())) {
+        booking.endTimeStr = d.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+        shouldSave = true;
+      }
+    }
+    if (shouldSave) {
+      await booking.save();
+    }
+
     res.json(booking);
   } catch (error) {
     console.error('Get booking error:', error);
@@ -304,9 +370,16 @@ exports.startRental = async (req, res) => {
       return res.status(400).json({ message: 'Digital agreement must be accepted first' });
     }
 
-    // Check access
-    if (req.user.role !== 'admin' && booking.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    // Only owner or admin can start the ride (after physical handover)
+    if (
+      req.user.role !== 'admin' &&
+      booking.owner.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: 'Only the bike owner can start the ride after physical handover' });
+    }
+
+    if (booking.status === 'ongoing') {
+      return res.json({ message: 'Ride is already ongoing', booking });
     }
 
     if (booking.status !== 'confirmed') {
@@ -315,9 +388,17 @@ exports.startRental = async (req, res) => {
     if (!booking.isSentToOwner || booking.ownerDecision?.status !== 'accepted') {
       return res.status(400).json({ message: 'Owner acceptance is required before starting the ride' });
     }
-    // Advance payment check removed
-    if (booking.securityDepositStatus !== 'collected') {
-      return res.status(400).json({ message: 'Security deposit must be collected before starting the ride' });
+
+    // Security deposit must be authorized by customer before ride can start
+    if (booking.securityDepositStatus === 'pending') {
+      return res.status(400).json({ message: 'Security deposit must be authorized by the customer before starting the ride' });
+    }
+
+    // Auto-advance deposit to collected on ride start/handover
+    if (booking.securityDepositStatus === 'authorized') {
+      booking.securityDepositStatus = 'collected';
+      booking.securityDepositCollectedAt = new Date();
+      booking.securityDepositCollectedBy = req.user._id;
     }
 
     booking.status = 'ongoing';
@@ -325,6 +406,9 @@ exports.startRental = async (req, res) => {
     booking.actualHandoverTime = new Date();
     booking.updatedAt = new Date();
     await booking.save();
+
+    // Bug 3: Mark bike as unavailable while ride is ongoing
+    await Bike.findByIdAndUpdate(booking.bike, { isAvailable: false });
 
     // Socket.IO tracking removed
     // const io = req.app.get('io'); ...
@@ -495,10 +579,32 @@ exports.ownerRespondToBooking = async (req, res) => {
         note: note || booking.ownerDecision?.note,
         decidedAt: new Date()
       };
+      await Bike.findByIdAndUpdate(booking.bike, { isAvailable: true });
     }
 
     booking.updatedAt = new Date();
     await booking.save();
+
+    // Bug 1: Notify customer immediately when owner accepts or declines
+    try {
+      if (decision === 'accept') {
+        await Notification.create({
+          recipient: booking.customer,
+          type: 'booking_status',
+          message: 'The owner accepted your booking request! Please confirm and authorize the security deposit to proceed.',
+          relatedId: booking._id
+        });
+      } else {
+        await Notification.create({
+          recipient: booking.customer,
+          type: 'booking_status',
+          message: `The owner declined your booking request.${note ? ` Note: ${note}` : ''}`,
+          relatedId: booking._id
+        });
+      }
+    } catch (notifError) {
+      console.error('Notification creation failed on owner respond:', notifError);
+    }
 
     res.json({ message: `Booking ${decision}ed by owner`, booking });
   } catch (error) {
@@ -533,10 +639,23 @@ exports.authorizeSecurityDeposit = async (req, res) => {
     }
 
     booking.securityDepositStatus = 'authorized';
+    // Booking remains 'confirmed' — ride starts only when owner clicks Start Ride after physical handover
     booking.updatedAt = new Date();
     await booking.save();
 
-    res.json({ message: 'Security deposit authorized. Waiting for owner handover.', booking });
+    // Notify owner that deposit is authorized and bike is ready for handover
+    try {
+      await Notification.create({
+        recipient: booking.owner,
+        type: 'booking_status',
+        message: 'Customer authorized the security deposit. Please hand over the bike and start the ride.',
+        relatedId: booking._id
+      });
+    } catch (e) {
+      console.error('Notification error on authorize deposit:', e);
+    }
+
+    res.json({ message: 'Security deposit authorized. Please wait for the owner to hand over the bike and start the ride.', booking });
   } catch (error) {
     console.error('Authorize security deposit error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -545,30 +664,34 @@ exports.authorizeSecurityDeposit = async (req, res) => {
 
 exports.collectSecurityDeposit = async (req, res) => {
   try {
-    if (req.user.role !== 'owner') {
+    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied. Owner only.' });
     }
 
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    if (booking.owner.toString() !== req.user._id.toString()) {
+    if (booking.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
     if (booking.status !== 'confirmed') {
       return res.status(400).json({ message: 'Security deposit can be collected only for confirmed bookings' });
     }
     if (booking.securityDepositStatus === 'collected') {
-      return res.json({ message: 'Security deposit already marked as collected', booking });
+      return res.json({ message: 'Security deposit already collected', booking });
+    }
+    if (booking.securityDepositStatus === 'pending') {
+      return res.status(400).json({ message: 'Customer must authorize the security deposit first' });
     }
 
     booking.securityDepositStatus = 'collected';
     booking.securityDepositCollectedAt = new Date();
     booking.securityDepositCollectedBy = req.user._id;
+    // Booking remains 'confirmed' — ride starts only when owner clicks Start Ride after physical handover
     booking.updatedAt = new Date();
     await booking.save();
 
-    res.json({ message: 'Security deposit marked as collected', booking });
+    res.json({ message: 'Security deposit marked as collected. Owner can now start the ride after physical handover.', booking });
   } catch (error) {
     console.error('Collect security deposit error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -637,6 +760,9 @@ exports.endRental = async (req, res) => {
     booking.updatedAt = new Date();
     await booking.save();
 
+    // Bug 3: Update bike to available upon rental completion
+    await Bike.findByIdAndUpdate(booking.bike._id || booking.bike, { isAvailable: true });
+
     // Tracking stopped (Socket.IO removed)
     // const io = req.app.get('io'); ...
 
@@ -681,9 +807,119 @@ exports.cancelBooking = async (req, res) => {
     booking.updatedAt = new Date();
     await booking.save();
 
+    // Bug 3: Release bike to available upon booking cancellation
+    await Bike.findByIdAndUpdate(booking.bike, { isAvailable: true });
+
     res.json({ message: 'Booking cancelled successfully', booking });
   } catch (error) {
     console.error('Cancel booking error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Update booking details (dates/times)
+// @route   PUT /api/bookings/:id
+// @access  Private
+exports.updateBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (
+      req.user.role !== 'admin' &&
+      booking.customer.toString() !== req.user._id.toString() &&
+      booking.owner.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (booking.status === 'ongoing' || booking.status === 'completed') {
+      return res.status(400).json({ message: 'Cannot edit an ongoing or completed booking' });
+    }
+
+    const { startDate, endDate, startTime, endTime, startTimeIso, endTimeIso, handoverLocation } = req.body;
+
+    if (startDate) booking.startDate = new Date(startDate);
+    if (endDate) booking.endDate = new Date(endDate);
+    if (startTime) booking.startTimeStr = startTime;
+    if (endTime) booking.endTimeStr = endTime;
+
+    if (startTimeIso) {
+      booking.startTime = new Date(startTimeIso);
+    } else if (startDate && startTime) {
+      booking.startTime = new Date(`${startDate}T${startTime}`);
+    }
+
+    if (endTimeIso) {
+      booking.endTime = new Date(endTimeIso);
+    } else if (endDate && endTime) {
+      booking.endTime = new Date(`${endDate}T${endTime}`);
+    }
+
+    if (booking.endTime <= booking.startTime) {
+      return res.status(400).json({ message: 'End time must be after start time' });
+    }
+
+    const durationMs = booking.endTime - booking.startTime;
+    const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
+    const durationDays = Math.ceil(durationHours / 24);
+    booking.duration = { hours: durationHours, days: durationDays };
+
+    if (booking.bookingType === 'hourly') {
+      booking.totalAmount = booking.hourlyRate * durationHours;
+    } else {
+      booking.totalAmount = booking.dailyRate * durationDays;
+    }
+    booking.securityDeposit = Math.round(booking.totalAmount * 0.2);
+
+    if (handoverLocation) booking.handoverLocation = handoverLocation;
+    booking.updatedAt = new Date();
+
+    await booking.save();
+
+    // If agreement exists and is not accepted yet, synchronize agreementText
+    const agreement = await Agreement.findOne({ booking: booking._id });
+    if (agreement && !agreement.accepted) {
+      const bike = await Bike.findById(booking.bike).populate('owner');
+      const customer = await User.findById(booking.customer);
+      if (bike && customer) {
+        agreement.agreementText = agreementTemplate(
+          {
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            startTimeStr: booking.startTimeStr,
+            endTimeStr: booking.endTimeStr,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            createdAt: agreement.createdAt || booking.createdAt,
+            duration: `${booking.duration?.hours || 1} hours`,
+            securityDeposit: booking.securityDeposit,
+            lateReturnPenalty: 500,
+            bookingId: booking._id,
+            advancePaymentRequired: booking.advancePayment?.requiredAmount || 0
+          },
+          {
+            brand: bike.brand,
+            model: bike.model,
+            bikeNumber: bike.bikeNumber,
+            insuranceStatus: calculateInsuranceStatus(bike)
+          },
+          {
+            name: bike.owner?.name || 'Owner',
+            phone: bike.owner?.phone || ''
+          }
+        );
+        await agreement.save();
+      }
+    }
+
+    res.json({ message: 'Booking updated successfully', booking });
+  } catch (error) {
+    console.error('Update booking error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

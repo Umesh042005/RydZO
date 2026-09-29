@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, sendOTP, verifyOTP, resendOTP } = require('../controllers/authController');
+const { register, login, sendOTP, verifyOTP, resendOTP, checkRole } = require('../controllers/authController');
+
+// @route   POST /api/auth/check-role
+// @desc    Check user role before login
+// @access  Public
+router.post('/check-role', checkRole);
 
 // @route   POST /api/auth/register
 // @desc    Register new user

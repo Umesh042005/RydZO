@@ -4,7 +4,16 @@ import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { FiShield, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
+import { FiShield, FiAlertTriangle, FiCheckCircle, FiNavigation, FiClock, FiMapPin, FiAlertCircle } from 'react-icons/fi';
+import { formatTime12Hour } from '../utils/dateUtils';
+import GoogleMapView from '../components/maps/GoogleMapView';
+import OSMMapView from '../components/maps/osm/OSMMapView';
+import { calculateRouteFromCurrentLocation as googleRouteCalc } from '../services/routesService';
+import { calculateRouteFromCurrentLocation as osmRouteCalc } from '../services/osm/osmRoutesService';
+import { isOsmProvider } from '../config/mapProvider';
+
+const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
+const calculateRouteFromCurrentLocation = isOsmProvider() ? osmRouteCalc : googleRouteCalc;
 
 const BikeDetails = () => {
   const { id } = useParams();
@@ -20,6 +29,9 @@ const BikeDetails = () => {
     endTime: ''
   });
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [routeError, setRouteError] = useState(null);
 
   const fetchBikeDetails = useCallback(async () => {
     try {
@@ -32,6 +44,35 @@ const BikeDetails = () => {
       setLoading(false);
     }
   }, [id]);
+
+  const handleGetDirections = async () => {
+    const coords = bike?.handoverLocation?.coordinates;
+    if (!coords || coords.lat == null || coords.lng == null) {
+      toast.error('Location coordinates not available for directions');
+      return;
+    }
+
+    setCalculatingRoute(true);
+    setRouteError(null);
+    try {
+      const result = await calculateRouteFromCurrentLocation({
+        lat: Number(coords.lat),
+        lng: Number(coords.lng)
+      });
+      if (result.available) {
+        setRouteInfo(result);
+        toast.success(`Distance: ${result.distance.text} • ETA: ${result.duration.text}`);
+      } else {
+        setRouteError(result.error || 'Failed to calculate directions');
+        toast.error(result.error || 'Failed to calculate directions');
+      }
+    } catch (err) {
+      setRouteError('Unable to calculate route from your current location');
+      toast.error('Unable to calculate route from your current location');
+    } finally {
+      setCalculatingRoute(false);
+    }
+  };
 
   useEffect(() => {
     fetchBikeDetails();
@@ -52,9 +93,19 @@ const BikeDetails = () => {
     }
 
     try {
+      const startTimeIso = new Date(`${bookingData.startDate}T${bookingData.startTime}`).toISOString();
+      const endTimeIso = new Date(`${bookingData.endDate}T${bookingData.endTime}`).toISOString();
+
+      const startTimeStr = formatTime12Hour(bookingData.startTime);
+      const endTimeStr = formatTime12Hour(bookingData.endTime);
+
       const response = await api.post('/api/bookings', {
         bikeId: id,
-        ...bookingData
+        ...bookingData,
+        startTimeStr,
+        endTimeStr,
+        startTimeIso,
+        endTimeIso
       });
 
       toast.success('Booking created! Please accept the agreement.');
@@ -188,13 +239,77 @@ const BikeDetails = () => {
               </p>
             </div>
 
-            {/* Handover Note */}
+            {/* Handover Note & Location */}
             <div className="card bg-neutral-100">
               <h3 className="font-semibold mb-2">Handover Information</h3>
               <p className="text-neutral-700">
                 The bike will be provided directly by the owner at the agreed location and time. 
                 RYDZO acts only as an aggregator and is not responsible for bike handover.
               </p>
+            </div>
+
+            {/* Pickup / Handover Location & Directions */}
+            <div className="card">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <h3 className="text-xl font-semibold flex items-center gap-2">
+                  <FiMapPin className="text-primary-700" />
+                  Pickup / Handover Location
+                </h3>
+                {bike.handoverLocation?.coordinates?.lat != null &&
+                 bike.handoverLocation?.coordinates?.lng != null && (
+                  <button
+                    type="button"
+                    onClick={handleGetDirections}
+                    disabled={calculatingRoute}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors border border-primary-200 self-start sm:self-auto disabled:opacity-60"
+                  >
+                    <FiNavigation className="text-xs" />
+                    {calculatingRoute ? 'Calculating Route...' : 'Get Directions'}
+                  </button>
+                )}
+              </div>
+
+              {bike.handoverLocation?.address ? (
+                <p className="text-neutral-700 mb-3">{bike.handoverLocation.address}</p>
+              ) : (
+                <p className="text-neutral-500 italic mb-3">Handover address will be confirmed upon booking with the owner.</p>
+              )}
+
+              {/* Route distance and ETA metrics banner */}
+              {routeInfo && routeInfo.available && (
+                <div className="mb-3 p-3 bg-primary-50 border border-primary-200 rounded-lg flex flex-wrap items-center justify-between gap-3 text-sm text-primary-900">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <FiNavigation className="text-primary-600" />
+                      <span>Distance: <strong>{routeInfo.distance.text}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <FiClock className="text-primary-600" />
+                      <span>Est. Travel Time: <strong>{routeInfo.duration.text}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Route error / permission denied fallback helper */}
+              {routeError && (
+                <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+                  <FiAlertCircle className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">{routeError}</p>
+                    <p className="text-amber-700 mt-0.5">
+                      You can also use the external map link below to view directions directly.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <ActiveMapView
+                coordinates={bike.handoverLocation?.coordinates}
+                address={bike.handoverLocation?.address || ''}
+                directionsResult={routeInfo?.directionsResult || null}
+                height="240px"
+              />
             </div>
 
             {/* Bike Details */}

@@ -14,7 +14,7 @@ const Dashboard = () => {
   const [updatingBikeId, setUpdatingBikeId] = useState(null);
 
   const fetchDashboardData = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.role === 'admin') return;
 
     try {
       if (user.role === 'customer') {
@@ -36,6 +36,11 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    if (user.role === 'admin') {
+      navigate('/admin', { replace: true });
       return;
     }
 
@@ -209,14 +214,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {user.role === 'admin' && (
-          <div className="card">
-            <h3 className="text-xl font-semibold mb-4">Admin Dashboard</h3>
-            <Link to="/admin" className="btn-primary inline-block">
-              Go to Admin Panel
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );

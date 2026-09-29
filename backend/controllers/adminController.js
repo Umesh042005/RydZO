@@ -2,6 +2,65 @@ const User = require('../models/User');
 const Bike = require('../models/Bike');
 const Booking = require('../models/Booking');
 const DamageProof = require('../models/DamageProof');
+const jwt = require('jsonwebtoken');
+
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET || 'rydzo_secret_key', {
+    expiresIn: '30d'
+  });
+};
+
+// @desc    Admin login directly
+// @route   POST /api/admin/login
+// @access  Public
+exports.adminLogin = async (req, res) => {
+  try {
+    const { phone, email, password } = req.body;
+
+    if ((!phone && !email) || !password) {
+      return res.status(400).json({ message: 'Please provide phone/email and password' });
+    }
+
+    const user = await User.findOne({
+      $or: [
+        phone ? { phone } : null,
+        email ? { email } : null
+      ].filter(Boolean)
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    // Role check: must be admin
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Admin credentials required' });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    const token = generateToken(user._id);
+
+    res.json({
+      message: 'Admin login successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard
@@ -189,9 +248,9 @@ exports.approveCustomer = async (req, res) => {
 // @access  Private (Admin)
 exports.rejectCustomer = async (req, res) => {
   try {
-    const { note } = req.body;
+    const note = req.body.reason || req.body.note;
     if (!note) {
-      return res.status(400).json({ message: 'Rejection note is required' });
+      return res.status(400).json({ message: 'Rejection reason is required' });
     }
 
     const user = await User.findById(req.params.id);
@@ -201,6 +260,7 @@ exports.rejectCustomer = async (req, res) => {
     }
 
     user.customerApprovalStatus = 'rejected';
+    user.isVerified = false;
     user.customerApprovalNote = note;
 
     // Reject pending documents
@@ -267,9 +327,9 @@ exports.approveOwner = async (req, res) => {
 // @access  Private (Admin)
 exports.rejectOwner = async (req, res) => {
   try {
-    const { note } = req.body;
+    const note = req.body.reason || req.body.note;
     if (!note) {
-      return res.status(400).json({ message: 'Rejection note is required' });
+      return res.status(400).json({ message: 'Rejection reason is required' });
     }
 
     const user = await User.findById(req.params.id);
@@ -279,6 +339,7 @@ exports.rejectOwner = async (req, res) => {
     }
 
     user.ownerApprovalStatus = 'rejected';
+    user.isVerified = false;
     user.ownerApprovalNote = note;
     await user.save();
 
@@ -340,9 +401,9 @@ exports.approveBike = async (req, res) => {
 // @access  Private (Admin)
 exports.rejectBike = async (req, res) => {
   try {
-    const { note } = req.body;
+    const note = req.body.reason || req.body.note;
     if (!note) {
-      return res.status(400).json({ message: 'Rejection note is required' });
+      return res.status(400).json({ message: 'Rejection reason is required' });
     }
 
     const bike = await Bike.findById(req.params.id);
@@ -352,6 +413,7 @@ exports.rejectBike = async (req, res) => {
     }
 
     bike.approvalStatus = 'rejected';
+    bike.isAvailable = false;
     bike.approvalNote = note;
     await bike.save();
 
@@ -401,9 +463,39 @@ exports.getAllBikes = async (req, res) => {
   try {
     const bikes = await Bike.find()
       .populate('owner', 'name phone email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json(bikes);
+    // Check active bookings to determine live/booking state
+    const bikeIds = bikes.map(b => b._id);
+    const activeBookings = await Booking.find({
+      bike: { $in: bikeIds },
+      status: { $in: ['confirmed', 'ongoing'] }
+    }).sort({ createdAt: -1 });
+
+    const bookingByBike = {};
+    activeBookings.forEach(b => {
+      if (!bookingByBike[b.bike.toString()]) {
+        bookingByBike[b.bike.toString()] = b;
+      }
+    });
+
+    const enrichedBikes = bikes.map(b => {
+      const activeBooking = bookingByBike[b._id.toString()];
+      let rentalStatus = 'Available';
+      if (activeBooking) {
+        rentalStatus = activeBooking.status === 'ongoing' ? 'Ongoing' : 'Confirmed';
+      } else if (!b.isAvailable) {
+        rentalStatus = 'Unavailable';
+      }
+      return {
+        ...b,
+        currentBooking: activeBooking || null,
+        rentalStatus
+      };
+    });
+
+    res.json(enrichedBikes);
   } catch (error) {
     console.error('Get bikes error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

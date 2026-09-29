@@ -1,5 +1,61 @@
+function formatTime12Hour(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const trimmed = timeStr.trim();
+  if (/am|pm/i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  }
+  return trimmed;
+}
+
+function formatBookingDate(dateVal) {
+  if (!dateVal) return '—';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return String(dateVal);
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function formatDateTimeIST(dateVal, timeStr) {
+  if (!dateVal && !timeStr) return '—';
+
+  let formattedTime = formatTime12Hour(timeStr);
+
+  if (dateVal) {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const dateText = formatBookingDate(d);
+      if (!formattedTime) {
+        formattedTime = d.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+      return `${dateText} at ${formattedTime}`;
+    }
+  }
+
+  return formattedTime || '—';
+}
+
 const agreementTemplate = (bookingDetails, bikeDetails, ownerDetails) => {
   const advance = Number(bookingDetails.advancePaymentRequired || 0);
+  const startDisplay = formatDateTimeIST(bookingDetails.startTime || bookingDetails.startDate, bookingDetails.startTimeStr);
+  const endDisplay = formatDateTimeIST(bookingDetails.endTime || bookingDetails.endDate, bookingDetails.endTimeStr);
+  const generatedAt = formatDateTimeIST(bookingDetails.createdAt || new Date());
+
   return `
 DIGITAL RENTAL AGREEMENT - RYDZO
 
@@ -11,8 +67,8 @@ Bike: ${bikeDetails.brand} ${bikeDetails.model} (${bikeDetails.bikeNumber})
 RENTAL TERMS AND CONDITIONS:
 
 1. RENTAL PERIOD
-   - Start Date & Time: ${new Date(bookingDetails.startTime).toLocaleString()}
-   - End Date & Time: ${new Date(bookingDetails.endTime).toLocaleString()}
+   - Start Date & Time: ${startDisplay}
+   - End Date & Time: ${endDisplay}
    - Duration: ${bookingDetails.duration}
 
 2. ADVANCE PAYMENT (ONLINE)
@@ -72,9 +128,9 @@ RENTAL TERMS AND CONDITIONS:
     - I consent to location tracking and geo-fencing
 
 AGREEMENT ID: ${bookingDetails.bookingId}
-DATE: ${new Date().toLocaleString()}
+DATE: ${startDisplay}
+Agreement Generated On: ${generatedAt}
   `;
 };
 
 module.exports = agreementTemplate;
-

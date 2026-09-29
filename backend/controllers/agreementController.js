@@ -24,6 +24,38 @@ exports.createAgreement = async (req, res) => {
     // Check if agreement already exists
     let agreement = await Agreement.findOne({ booking: bookingId });
     if (agreement) {
+      const refreshedText = agreementTemplate(
+        {
+          customerName: booking.customer.name,
+          customerPhone: booking.customer.phone,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          startTimeStr: booking.startTimeStr,
+          endTimeStr: booking.endTimeStr,
+          startDate: booking.startDate,
+          endDate: booking.endDate,
+          createdAt: agreement.createdAt || booking.createdAt,
+          duration: `${booking.duration?.hours || 1} hours`,
+          securityDeposit: booking.securityDeposit,
+          lateReturnPenalty: 500,
+          bookingId: booking._id,
+          advancePaymentRequired: booking.advancePayment?.requiredAmount || 0
+        },
+        {
+          brand: booking.bike.brand,
+          model: booking.bike.model,
+          bikeNumber: booking.bike.bikeNumber,
+          insuranceStatus: booking.bike.documents?.insurance?.documentUrl ? 'Insurance Available' : 'No Insurance'
+        },
+        {
+          name: booking.owner.name,
+          phone: booking.owner.phone
+        }
+      );
+      if (refreshedText && refreshedText !== agreement.agreementText) {
+        agreement.agreementText = refreshedText;
+        await agreement.save();
+      }
       return res.json({ message: 'Agreement already exists', agreement });
     }
 
@@ -34,10 +66,16 @@ exports.createAgreement = async (req, res) => {
         customerPhone: booking.customer.phone,
         startTime: booking.startTime,
         endTime: booking.endTime,
-        duration: `${booking.duration.hours} hours`,
+        startTimeStr: booking.startTimeStr,
+        endTimeStr: booking.endTimeStr,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        createdAt: booking.createdAt,
+        duration: `${booking.duration?.hours || 1} hours`,
         securityDeposit: booking.securityDeposit,
         lateReturnPenalty: 500,
-        bookingId: booking._id
+        bookingId: booking._id,
+        advancePaymentRequired: booking.advancePayment?.requiredAmount || 0
       },
       {
         brand: booking.bike.brand,
@@ -97,6 +135,42 @@ exports.getAgreement = async (req, res) => {
         booking.customer.toString() !== req.user._id.toString() &&
         booking.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Ensure agreementText reflects current booking time & IST formatting using the single source of truth
+    if (agreement.booking && agreement.customer && agreement.bike && agreement.owner) {
+      const refreshedText = agreementTemplate(
+        {
+          customerName: agreement.customer.name,
+          customerPhone: agreement.customer.phone,
+          startTime: agreement.booking.startTime,
+          endTime: agreement.booking.endTime,
+          startTimeStr: agreement.booking.startTimeStr,
+          endTimeStr: agreement.booking.endTimeStr,
+          startDate: agreement.booking.startDate,
+          endDate: agreement.booking.endDate,
+          createdAt: agreement.createdAt || agreement.booking.createdAt,
+          duration: `${agreement.booking.duration?.hours || 1} hours`,
+          securityDeposit: agreement.booking.securityDeposit,
+          lateReturnPenalty: 500,
+          bookingId: agreement.booking._id,
+          advancePaymentRequired: agreement.booking.advancePayment?.requiredAmount || 0
+        },
+        {
+          brand: agreement.bike.brand,
+          model: agreement.bike.model,
+          bikeNumber: agreement.bike.bikeNumber,
+          insuranceStatus: agreement.bike.documents?.insurance?.documentUrl ? 'Insurance Available' : 'No Insurance'
+        },
+        {
+          name: agreement.owner.name,
+          phone: agreement.owner.phone
+        }
+      );
+      if (refreshedText && refreshedText !== agreement.agreementText) {
+        agreement.agreementText = refreshedText;
+        await agreement.save();
+      }
     }
 
     res.json(agreement);

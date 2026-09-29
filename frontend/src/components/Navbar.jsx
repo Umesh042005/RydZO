@@ -79,7 +79,7 @@ const Navbar = () => {
                     </Link>
                     {/* Assuming Owner's "My Bikes" might be filtered list or dashboard bike list. Using /bikes/create for now as "Add Bike" was previous equivalent or maybe they mean manageable list */}
                     <Link to="/bikes/create" className="text-white hover:text-primary-200 font-medium transition-colors">
-                      My Bikes
+                      Browse Bikes
                     </Link>
                     <Link to="/owner/bookings" className="text-white hover:text-primary-200 font-medium transition-colors">
                       Bookings
@@ -96,14 +96,9 @@ const Navbar = () => {
 
                 {/* Admin Links */}
                 {user.role === 'admin' && (
-                  <>
-                    <Link to="/dashboard" className="text-white hover:text-primary-200 font-medium transition-colors">
-                      Dashboard
-                    </Link>
-                    <Link to="/admin" className="text-white hover:text-primary-200 font-medium transition-colors">
-                      Admin Panel
-                    </Link>
-                  </>
+                  <Link to="/admin" className="text-white hover:text-primary-200 font-medium transition-colors">
+                    Admin Panel
+                  </Link>
                 )}
 
                 <Link to="/profile" className="text-white hover:text-primary-200 font-medium transition-colors">
@@ -236,22 +231,13 @@ const Navbar = () => {
 
                 {/* Admin Links - Mobile */}
                 {user.role === 'admin' && (
-                  <>
-                    <Link
-                      to="/dashboard"
-                      className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Dashboard
-                    </Link>
-                    <Link
-                      to="/admin"
-                      className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Admin Panel
-                    </Link>
-                  </>
+                  <Link
+                    to="/admin"
+                    className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Admin Panel
+                  </Link>
                 )}
 
                 <Link

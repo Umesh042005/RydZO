@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FiCalendar } from 'react-icons/fi';
+import { formatBookingDate, formatTime12Hour } from '../utils/dateUtils';
 
 const OwnerBookings = () => {
   const { user } = useAuth();
@@ -103,7 +104,7 @@ const OwnerBookings = () => {
                       </div>
                     </div>
                     <p className="text-neutral-600">
-                      Time: {new Date(booking.startTime).toLocaleString()} - {new Date(booking.endTime).toLocaleString()}
+                      Time: {formatBookingDate(booking.startTime || booking.startDate)} ({formatTime12Hour(booking.startTimeStr, booking.startTime)} — {formatTime12Hour(booking.endTimeStr, booking.endTime)})
                     </p>
                   </div>
                   <div className="text-right">

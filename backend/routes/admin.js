@@ -17,10 +17,16 @@ const {
   getLiveRentals,
   handleDispute,
   getDashboardStats,
-  getAllBookings
+  getAllBookings,
+  adminLogin
 } = require('../controllers/adminController');
 
-// All routes require admin role
+// @route   POST /api/admin/login
+// @desc    Admin login directly
+// @access  Public
+router.post('/login', adminLogin);
+
+// All routes below require admin authentication and role
 router.use(auth);
 router.use(authorize('admin'));
 

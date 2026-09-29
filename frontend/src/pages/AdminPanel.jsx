@@ -1,20 +1,42 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import Navbar from '../components/Navbar';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { FiUsers, FiPackage, FiCalendar } from 'react-icons/fi';
+import { FiRefreshCw, FiActivity } from 'react-icons/fi';
+
+import AdminSidebar from '../components/admin/AdminSidebar';
+import AdminHeader from '../components/admin/AdminHeader';
+import AdminStatCards from '../components/admin/AdminStatCards';
+import AdminBookingCharts from '../components/admin/AdminBookingCharts';
+import AdminRecentBikesTable from '../components/admin/AdminRecentBikesTable';
+import AdminEntityDetailModal from '../components/admin/AdminEntityDetailModal';
 
 const AdminPanel = () => {
-  const [stats, setStats] = useState({});
-  const [pendingApprovals, setPendingApprovals] = useState({});
+  // State
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [expandedRows, setExpandedRows] = useState({});
+  const [stats, setStats] = useState({});
+  const [pendingApprovals, setPendingApprovals] = useState({
+    customers: [],
+    owners: [],
+    bikes: []
+  });
   const [adminBookings, setAdminBookings] = useState([]);
   const [adminBikes, setAdminBikes] = useState([]);
   const [liveRentals, setLiveRentals] = useState([]);
   const [adminCustomers, setAdminCustomers] = useState([]);
   const [adminOwners, setAdminOwners] = useState([]);
   const [loadingTabData, setLoadingTabData] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedRows, setExpandedRows] = useState({});
+
+  // Detail Modal State for Pending Review / Entity Info
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    type: 'bike', // 'customer' | 'owner' | 'bike'
+    data: null
+  });
+
+  // Filter state for Bookings tab
   const [bookingFilters, setBookingFilters] = useState({
     status: '',
     sentToOwner: '',
@@ -24,104 +46,75 @@ const AdminPanel = () => {
     securityDepositStatus: ''
   });
 
+  const navigate = useNavigate();
+
+  const handleOpenBookingDetails = (bookingId) => {
+    if (!bookingId) return;
+    navigate(`/bookings/${bookingId}`);
+  };
+
   const toggleExpanded = (key) => {
     setExpandedRows((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const formatDateTime = (value) => {
-    if (!value) return '—';
+  const formatDateTime = (value, timeStr) => {
+    if (!value && !timeStr) return '—';
     try {
-      return new Date(value).toLocaleString();
+      const d = value ? new Date(value) : null;
+      let datePart = '';
+      if (d && !isNaN(d.getTime())) {
+        datePart = d.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+      }
+      let timePart = '';
+      if (timeStr && typeof timeStr === 'string' && timeStr.trim()) {
+        const trimmed = timeStr.trim();
+        if (/am|pm/i.test(trimmed)) {
+          timePart = trimmed;
+        } else {
+          const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+          if (match) {
+            let h = parseInt(match[1], 10);
+            const m = match[2];
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            timePart = `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+          } else {
+            timePart = trimmed;
+          }
+        }
+      } else if (d && !isNaN(d.getTime())) {
+        timePart = d.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+      if (datePart && timePart) return `${datePart}, ${timePart}`;
+      return datePart || timePart || '—';
     } catch {
-      return String(value);
+      return String(value || timeStr);
     }
   };
 
-  const isLikelyPdf = (url) =>
-    typeof url === 'string' && url.toLowerCase().includes('.pdf');
-
-  const renderDoc = (label, url) => {
-    if (!url) return <p className="text-sm text-neutral-500">{label}: Not uploaded</p>;
-    return (
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-neutral-700">{label}</p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm text-primary-700 underline break-all"
-        >
-          Open document
-        </a>
-        {!isLikelyPdf(url) && (
-          <img
-            src={url}
-            alt={label}
-            className="w-48 h-48 object-cover rounded-lg border border-neutral-200"
-          />
-        )}
-      </div>
-    );
-  };
-
-  const renderImageGallery = (images) => {
-    if (!images) {
-      return <p className="text-sm text-neutral-500">No images uploaded</p>;
-    }
-
-    const entries = [
-      { key: 'frontView', label: 'Front View', url: images.frontView },
-      { key: 'backView', label: 'Back View', url: images.backView },
-      { key: 'sideView', label: 'Side View', url: images.sideView },
-      { key: 'meterPhoto', label: 'Meter Photo', url: images.meterPhoto },
-      { key: 'scratches', label: 'Scratches', url: images.scratches }
-    ].filter((x) => !!x.url);
-
-    if (entries.length === 0) {
-      return <p className="text-sm text-neutral-500">No images uploaded</p>;
-    }
-
-    return (
-      <div className="grid grid-cols-2 gap-4">
-        {entries.map((img) => (
-          <div key={img.key} className="space-y-2">
-            <p className="text-sm font-medium text-neutral-700">{img.label}</p>
-            <a
-              href={img.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-primary-700 underline break-all"
-            >
-              Open image
-            </a>
-            <img
-              src={img.url}
-              alt={img.label}
-              className="w-full h-40 object-cover rounded-lg border border-neutral-200"
-            />
-          </div>
-        ))}
-      </div>
-    );
-  };
-
+  // Fetch dashboard stats & pending approvals
   const fetchDashboardData = useCallback(async () => {
     try {
       const [statsRes, approvalsRes] = await Promise.all([
         api.get('/api/admin/dashboard'),
         api.get('/api/admin/pending-approvals')
       ]);
-      setStats(statsRes.data);
-      setPendingApprovals(approvalsRes.data);
+      setStats(statsRes.data || {});
+      setPendingApprovals(approvalsRes.data || { customers: [], owners: [], bikes: [] });
     } catch (error) {
-      console.error('Error fetching admin data:', error);
+      console.error('Error fetching admin dashboard data:', error);
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
+  // Fetch bookings
   const fetchBookings = useCallback(async () => {
     try {
       setLoadingTabData(true);
@@ -130,7 +123,7 @@ const AdminPanel = () => {
         if (v !== '' && v != null) params.append(k, v);
       });
       const res = await api.get(`/api/admin/bookings?${params.toString()}`);
-      setAdminBookings(res.data);
+      setAdminBookings(res.data || []);
     } catch (error) {
       console.error('Error fetching admin bookings:', error);
       toast.error('Failed to load bookings');
@@ -139,11 +132,12 @@ const AdminPanel = () => {
     }
   }, [bookingFilters]);
 
+  // Fetch bikes
   const fetchBikes = useCallback(async () => {
     try {
       setLoadingTabData(true);
       const res = await api.get('/api/admin/bikes');
-      setAdminBikes(res.data);
+      setAdminBikes(res.data || []);
     } catch (error) {
       console.error('Error fetching admin bikes:', error);
       toast.error('Failed to load bikes');
@@ -152,11 +146,12 @@ const AdminPanel = () => {
     }
   }, []);
 
+  // Fetch live rentals
   const fetchLiveRentals = useCallback(async () => {
     try {
       setLoadingTabData(true);
       const res = await api.get('/api/admin/live-rentals');
-      setLiveRentals(res.data);
+      setLiveRentals(res.data || []);
     } catch (error) {
       console.error('Error fetching live rentals:', error);
       toast.error('Failed to load live rentals');
@@ -165,11 +160,12 @@ const AdminPanel = () => {
     }
   }, []);
 
+  // Fetch customers
   const fetchCustomers = useCallback(async () => {
     try {
       setLoadingTabData(true);
       const res = await api.get('/api/admin/customers');
-      setAdminCustomers(res.data);
+      setAdminCustomers(res.data || []);
     } catch (error) {
       console.error('Error fetching customers:', error);
       toast.error('Failed to load customers');
@@ -178,11 +174,12 @@ const AdminPanel = () => {
     }
   }, []);
 
+  // Fetch owners
   const fetchOwners = useCallback(async () => {
     try {
       setLoadingTabData(true);
       const res = await api.get('/api/admin/owners');
-      setAdminOwners(res.data);
+      setAdminOwners(res.data || []);
     } catch (error) {
       console.error('Error fetching owners:', error);
       toast.error('Failed to load owners');
@@ -191,6 +188,17 @@ const AdminPanel = () => {
     }
   }, []);
 
+  // Initial load: fetch dashboard data, bikes, bookings, customers, owners for instant charts and search
+  useEffect(() => {
+    fetchDashboardData();
+    fetchBikes();
+    fetchBookings();
+    fetchCustomers();
+    fetchOwners();
+    fetchLiveRentals();
+  }, [fetchDashboardData, fetchBikes, fetchBookings, fetchCustomers, fetchOwners, fetchLiveRentals]);
+
+  // Reload when tab changes if needed
   useEffect(() => {
     if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'bikes') fetchBikes();
@@ -199,837 +207,893 @@ const AdminPanel = () => {
     if (activeTab === 'owners') fetchOwners();
   }, [activeTab, fetchBookings, fetchBikes, fetchLiveRentals, fetchCustomers, fetchOwners]);
 
+  // Total pending count calculation
+  const totalPendingCount = useMemo(() => {
+    const fromApprovals =
+      (pendingApprovals.customers?.length || 0) +
+      (pendingApprovals.owners?.length || 0) +
+      (pendingApprovals.bikes?.length || 0);
+
+    const fromStats =
+      (stats.pendingCustomers || 0) +
+      (stats.pendingOwners || 0) +
+      (stats.pendingBikes || 0);
+
+    return Math.max(fromApprovals, fromStats);
+  }, [pendingApprovals, stats]);
+
+  // Approve action with local state update without page reload
   const handleApprove = async (type, id, note = '') => {
     try {
+      const payload = { note, reason: note };
       if (type === 'customer') {
-        await api.put(`/api/admin/customers/${id}/approve`, { note });
+        await api.put(`/api/admin/customers/${id}/approve`, payload);
+        setAdminCustomers((prev) =>
+          prev.map((c) => (c._id === id ? { ...c, customerApprovalStatus: 'approved', isVerified: true, customerApprovalNote: note } : c))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          customers: prev.customers.filter((c) => c._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingCustomers: Math.max(0, (prev.pendingCustomers || 1) - 1)
+        }));
       } else if (type === 'owner') {
-        await api.put(`/api/admin/owners/${id}/approve`, { note });
+        await api.put(`/api/admin/owners/${id}/approve`, payload);
+        setAdminOwners((prev) =>
+          prev.map((o) => (o._id === id ? { ...o, ownerApprovalStatus: 'approved', isVerified: true, ownerApprovalNote: note } : o))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          owners: prev.owners.filter((o) => o._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingOwners: Math.max(0, (prev.pendingOwners || 1) - 1)
+        }));
       } else if (type === 'bike') {
-        await api.put(`/api/admin/bikes/${id}/approve`, { note });
+        await api.put(`/api/admin/bikes/${id}/approve`, payload);
+        setAdminBikes((prev) =>
+          prev.map((b) => (b._id === id ? { ...b, approvalStatus: 'approved', isAvailable: true, approvalNote: note } : b))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          bikes: prev.bikes.filter((b) => b._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingBikes: Math.max(0, (prev.pendingBikes || 1) - 1),
+          approvedBikes: (prev.approvedBikes || 0) + 1
+        }));
       }
-      toast.success('Approved successfully');
+
+      // Optimistically update modalConfig.data if currently open
+      setModalConfig((prev) => {
+        if (!prev.isOpen || !prev.data || prev.data._id !== id) return prev;
+        const updated = { ...prev.data };
+        if (type === 'customer') {
+          updated.customerApprovalStatus = 'approved';
+          updated.isVerified = true;
+          updated.customerApprovalNote = note;
+        } else if (type === 'owner') {
+          updated.ownerApprovalStatus = 'approved';
+          updated.isVerified = true;
+          updated.ownerApprovalNote = note;
+        } else if (type === 'bike') {
+          updated.approvalStatus = 'approved';
+          updated.isAvailable = true;
+          updated.approvalNote = note;
+        }
+        return { ...prev, data: updated };
+      });
+
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} approved successfully`);
       fetchDashboardData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to approve');
+      throw error;
     }
   };
 
+  // Reject action with local state update without page reload
   const handleReject = async (type, id, note) => {
     if (!note) {
-      toast.error('Rejection note is required');
+      toast.error('Rejection reason is required');
       return;
     }
     try {
+      const payload = { note, reason: note };
       if (type === 'customer') {
-        await api.put(`/api/admin/customers/${id}/reject`, { note });
+        await api.put(`/api/admin/customers/${id}/reject`, payload);
+        setAdminCustomers((prev) =>
+          prev.map((c) => (c._id === id ? { ...c, customerApprovalStatus: 'rejected', isVerified: false, customerApprovalNote: note } : c))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          customers: prev.customers.filter((c) => c._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingCustomers: Math.max(0, (prev.pendingCustomers || 1) - 1)
+        }));
       } else if (type === 'owner') {
-        await api.put(`/api/admin/owners/${id}/reject`, { note });
+        await api.put(`/api/admin/owners/${id}/reject`, payload);
+        setAdminOwners((prev) =>
+          prev.map((o) => (o._id === id ? { ...o, ownerApprovalStatus: 'rejected', isVerified: false, ownerApprovalNote: note } : o))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          owners: prev.owners.filter((o) => o._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingOwners: Math.max(0, (prev.pendingOwners || 1) - 1)
+        }));
       } else if (type === 'bike') {
-        await api.put(`/api/admin/bikes/${id}/reject`, { note });
+        const prevBike = adminBikes.find((b) => b._id === id);
+        const wasApproved = prevBike?.approvalStatus === 'approved';
+
+        await api.put(`/api/admin/bikes/${id}/reject`, payload);
+        setAdminBikes((prev) =>
+          prev.map((b) => (b._id === id ? { ...b, approvalStatus: 'rejected', isAvailable: false, approvalNote: note } : b))
+        );
+        setPendingApprovals((prev) => ({
+          ...prev,
+          bikes: prev.bikes.filter((b) => b._id !== id)
+        }));
+        setStats((prev) => ({
+          ...prev,
+          pendingBikes: Math.max(0, (prev.pendingBikes || 1) - 1),
+          approvedBikes: wasApproved ? Math.max(0, (prev.approvedBikes || 1) - 1) : prev.approvedBikes
+        }));
       }
-      toast.success('Rejected');
+
+      // Optimistically update modalConfig.data if currently open
+      setModalConfig((prev) => {
+        if (!prev.isOpen || !prev.data || prev.data._id !== id) return prev;
+        const updated = { ...prev.data };
+        if (type === 'customer') {
+          updated.customerApprovalStatus = 'rejected';
+          updated.isVerified = false;
+          updated.customerApprovalNote = note;
+        } else if (type === 'owner') {
+          updated.ownerApprovalStatus = 'rejected';
+          updated.isVerified = false;
+          updated.ownerApprovalNote = note;
+        } else if (type === 'bike') {
+          updated.approvalStatus = 'rejected';
+          updated.isAvailable = false;
+          updated.approvalNote = note;
+        }
+        return { ...prev, data: updated };
+      });
+
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} rejection updated`);
       fetchDashboardData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reject');
+      throw error;
     }
   };
 
+  // Open detail modal helper
+  const handleOpenDetail = (type, entity) => {
+    setModalConfig({
+      isOpen: true,
+      type,
+      data: entity
+    });
+  };
+
+  const handleCloseModal = () => {
+    setModalConfig({
+      isOpen: false,
+      type: 'bike',
+      data: null
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-8 text-neutral-900">Admin Panel</h1>
+    <div className="flex min-h-screen bg-[#f8faf9] text-neutral-900 font-sans antialiased">
+      {/* 1. Left Sidebar Navigation */}
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        pendingCount={totalPendingCount}
+      />
 
-        {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-neutral-200 flex-wrap">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'dashboard' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('approvals')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'approvals' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            Pending Approvals
-          </button>
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'bookings' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            All Bookings
-          </button>
-          <button
-            onClick={() => setActiveTab('live')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'live' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            Live Rides
-          </button>
-          <button
-            onClick={() => setActiveTab('bikes')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'bikes' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            All Bikes
-          </button>
-          <button
-            onClick={() => setActiveTab('customers')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'customers' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            All Customers
-          </button>
-          <button
-            onClick={() => setActiveTab('owners')}
-            className={`px-4 py-2 font-semibold ${activeTab === 'owners' ? 'border-b-2 border-primary-700 text-primary-700' : 'text-neutral-600'
-              }`}
-          >
-            All Owners
-          </button>
-        </div>
+      {/* Main Layout Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* 2. Top Header Bar */}
+        <AdminHeader
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          bikes={adminBikes}
+          customers={adminCustomers}
+          owners={adminOwners}
+          bookings={adminBookings}
+          pendingCount={totalPendingCount}
+          onSelectEntity={handleOpenDetail}
+          setActiveTab={setActiveTab}
+        />
 
-        {activeTab === 'dashboard' && (
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <div
-              className="card cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setActiveTab('customers')}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <FiUsers className="text-primary-700 text-2xl" />
-                <h3 className="text-xl font-semibold">Customers</h3>
-              </div>
-              <p className="text-3xl font-bold text-primary-700">{stats.totalCustomers}</p>
-              <p className="text-sm text-neutral-600">Pending: {stats.pendingCustomers}</p>
-            </div>
-            <div
-              className="card cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setActiveTab('owners')}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <FiUsers className="text-accent-600 text-2xl" />
-                <h3 className="text-xl font-semibold">Owners</h3>
-              </div>
-              <p className="text-3xl font-bold text-accent-600">{stats.totalOwners}</p>
-              <p className="text-sm text-neutral-600">Pending: {stats.pendingOwners}</p>
-            </div>
-            <div className="card">
-              <div className="flex items-center gap-3 mb-2">
-                <FiPackage className="text-primary-700 text-2xl" />
-                <h3 className="text-xl font-semibold">Bikes</h3>
-              </div>
-              <p className="text-3xl font-bold text-primary-700">{stats.totalBikes}</p>
-              <p className="text-sm text-neutral-600">Pending: {stats.pendingBikes}</p>
-              <p className="text-sm text-neutral-600">Approved: {stats.approvedBikes}</p>
-              <p className="text-sm text-neutral-600">Active (Browse): {stats.activeAvailableBikes}</p>
-              <p className="text-sm text-neutral-600">Hidden/Inactive: {stats.hiddenOrInactiveBikes}</p>
-            </div>
-            <div className="card">
-              <div className="flex items-center gap-3 mb-2">
-                <FiCalendar className="text-accent-600 text-2xl" />
-                <h3 className="text-xl font-semibold">Bookings</h3>
-              </div>
-              <p className="text-3xl font-bold text-accent-600">{stats.totalBookings}</p>
-              <p className="text-sm text-neutral-600">Draft (not sent): {stats.pendingBookingDrafts}</p>
-              <p className="text-sm text-neutral-600">Pending Owner Requests: {stats.pendingOwnerRequests}</p>
-              <p className="text-sm text-neutral-600">Confirmed: {stats.confirmedBookings}</p>
-              <p className="text-sm text-neutral-600">Live (Ongoing): {stats.liveRentals}</p>
-              <p className="text-sm text-neutral-600">Completed: {stats.completedBookings}</p>
-              <p className="text-sm text-neutral-600">Cancelled: {stats.cancelledBookings}</p>
-              <p className="text-sm text-neutral-600">Booked Bikes: {stats.bookedBikesDistinct}</p>
-              <p className="text-sm text-neutral-600">Running Bikes: {stats.runningBikesDistinct}</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'bookings' && (
-          <div className="space-y-6">
-            <div className="card">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <h2 className="text-2xl font-semibold">All Bookings</h2>
-                <button
-                  onClick={fetchBookings}
-                  className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                  disabled={loadingTabData}
-                >
-                  {loadingTabData ? 'Loading...' : 'Refresh'}
-                </button>
-              </div>
-
-              <div className="mt-4 grid md:grid-cols-3 gap-4">
-                <select
-                  value={bookingFilters.status}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, status: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">All Status</option>
-                  <option value="pending">pending</option>
-                  <option value="confirmed">confirmed</option>
-                  <option value="ongoing">ongoing</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
-                  <option value="disputed">disputed</option>
-                </select>
-
-                <select
-                  value={bookingFilters.sentToOwner}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, sentToOwner: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Sent to Owner (All)</option>
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
-
-                <select
-                  value={bookingFilters.ownerDecisionStatus}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, ownerDecisionStatus: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Owner Decision (All)</option>
-                  <option value="pending">pending</option>
-                  <option value="accepted">accepted</option>
-                  <option value="declined">declined</option>
-                </select>
-
-                <select
-                  value={bookingFilters.agreementAccepted}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, agreementAccepted: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Agreement Accepted (All)</option>
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
-
-                <select
-                  value={bookingFilters.advancePaymentStatus}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, advancePaymentStatus: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Advance Payment (All)</option>
-                  <option value="pending">pending</option>
-                  <option value="paid">paid</option>
-                </select>
-
-                <select
-                  value={bookingFilters.securityDepositStatus}
-                  onChange={(e) => setBookingFilters((p) => ({ ...p, securityDepositStatus: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Security Deposit (All)</option>
-                  <option value="pending">pending</option>
-                  <option value="collected">collected</option>
-                  <option value="refunded">refunded</option>
-                  <option value="forfeited">forfeited</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="card">
-              {adminBookings.length === 0 ? (
-                <p className="text-neutral-600">No bookings found for selected filters.</p>
-              ) : (
-                <div className="space-y-4">
-                  {adminBookings.map((b) => (
-                    <div key={b._id} className="border border-neutral-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="space-y-1">
-                          <p className="font-semibold">
-                            {b.bike?.brand} {b.bike?.model} ({b.bike?.bikeNumber})
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            Customer: {b.customer?.name} ({b.customer?.phone}) | Owner: {b.owner?.name} ({b.owner?.phone})
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            Start: {formatDateTime(b.startTime)} | End: {formatDateTime(b.endTime)}
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            Total: ₹{b.totalAmount} | Deposit: ₹{b.securityDeposit} | Advance: ₹{b.advancePayment?.requiredAmount || 0} ({b.advancePayment?.status || 'pending'})
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold">Status: {b.status}</p>
-                          <p className="text-sm text-neutral-600">SentToOwner: {String(!!b.isSentToOwner)}</p>
-                          <p className="text-sm text-neutral-600">OwnerDecision: {b.ownerDecision?.status || 'pending'}</p>
-                          <button
-                            onClick={() => toggleExpanded(`booking:${b._id}`)}
-                            className="mt-2 px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                          >
-                            {expandedRows[`booking:${b._id}`] ? 'Hide' : 'View'} Details
-                          </button>
-                        </div>
-                      </div>
-
-                      {expandedRows[`booking:${b._id}`] && (
-                        <div className="mt-4 grid md:grid-cols-2 gap-6 border-t border-neutral-200 pt-4">
-                          <div className="space-y-2 text-sm text-neutral-700">
-                            <p><span className="font-semibold">Agreement Accepted:</span> {String(!!b.agreementAccepted)}</p>
-                            <p><span className="font-semibold">Agreement Time:</span> {formatDateTime(b.agreementTimestamp)}</p>
-                            <p><span className="font-semibold">Advance Txn:</span> {b.advancePayment?.transactionId || '—'}</p>
-                            <p><span className="font-semibold">Advance Paid At:</span> {formatDateTime(b.advancePayment?.paidAt)}</p>
-                            <p><span className="font-semibold">Sent To Owner At:</span> {formatDateTime(b.sentToOwnerAt)}</p>
-                            <p><span className="font-semibold">Owner Decision Note:</span> {b.ownerDecision?.note || '—'}</p>
-                            <p><span className="font-semibold">Owner Decided At:</span> {formatDateTime(b.ownerDecision?.decidedAt)}</p>
-                          </div>
-                          <div className="space-y-2 text-sm text-neutral-700">
-                            <p><span className="font-semibold">Security Deposit Status:</span> {b.securityDepositStatus || 'pending'}</p>
-                            <p><span className="font-semibold">Deposit Collected At:</span> {formatDateTime(b.securityDepositCollectedAt)}</p>
-                            <p><span className="font-semibold">Handover Address:</span> {b.handoverLocation?.address || '—'}</p>
-                            <p><span className="font-semibold">Actual Handover:</span> {formatDateTime(b.actualHandoverTime)}</p>
-                            <p><span className="font-semibold">Actual Return:</span> {formatDateTime(b.actualReturnTime)}</p>
-                            <p><span className="font-semibold">Payment Status:</span> {b.paymentStatus}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+        {/* Content Container */}
+        <main className="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto space-y-8">
+          {/* DASHBOARD TAB */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8 animate-in fade-in duration-200">
+              {/* Welcome & Quick Summary */}
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+                    Marketplace Dashboard
+                  </h1>
+                  <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+                    Real-time performance metrics, fleet status, and booking analytics
+                  </p>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'live' && (
-          <div className="card">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-2xl font-semibold">Live Rides (Ongoing)</h2>
-              <button
-                onClick={fetchLiveRentals}
-                className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                disabled={loadingTabData}
-              >
-                {loadingTabData ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-
-            {liveRentals.length === 0 ? (
-              <p className="text-neutral-600 mt-4">No ongoing rides right now.</p>
-            ) : (
-              <div className="space-y-4 mt-4">
-                {liveRentals.map((r) => (
-                  <div key={r._id} className="border border-neutral-200 rounded-lg p-4">
-                    <p className="font-semibold">{r.bike?.brand} {r.bike?.model} ({r.bike?.bikeNumber})</p>
-                    <p className="text-sm text-neutral-600">
-                      Customer: {r.customer?.name} ({r.customer?.phone}) | Owner: {r.owner?.name} ({r.owner?.phone})
-                    </p>
-                    <p className="text-sm text-neutral-600">
-                      Started: {formatDateTime(r.actualHandoverTime)} | Scheduled End: {formatDateTime(r.endTime)}
-                    </p>
-                  </div>
-                ))}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => {
+                      fetchDashboardData();
+                      fetchBikes();
+                      fetchBookings();
+                      toast.success('Dashboard data refreshed');
+                    }}
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-xs font-bold shadow-xs transition-colors"
+                  >
+                    <FiRefreshCw className="text-xs" />
+                    <span>Refresh Data</span>
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {activeTab === 'bikes' && (
-          <div className="card">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-2xl font-semibold">All Bikes</h2>
-              <button
-                onClick={fetchBikes}
-                className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                disabled={loadingTabData}
-              >
-                {loadingTabData ? 'Loading...' : 'Refresh'}
-              </button>
+              {/* 3. 4 Stat Cards in a row */}
+              <AdminStatCards
+                stats={stats}
+                customers={adminCustomers}
+                owners={adminOwners}
+                bikes={adminBikes}
+                bookings={adminBookings}
+                onCardClick={(tab) => setActiveTab(tab)}
+              />
+
+              {/* 4 & 5. Booking Status Overview (Horizontal Segmented Bar) + Total Bookings Donut Chart */}
+              <AdminBookingCharts stats={stats} bookings={adminBookings} />
+
+              {/* 6 & 7. Recent Bikes Table with Status Badges and Detail Modal */}
+              <AdminRecentBikesTable
+                bikes={adminBikes}
+                onOpenDetail={handleOpenDetail}
+                onApproveBike={(id) => handleApprove('bike', id)}
+                onRejectBike={(id) => {
+                  const targetBike = adminBikes.find((b) => b._id === id);
+                  handleOpenDetail('bike', targetBike);
+                }}
+              />
             </div>
+          )}
 
-            {adminBikes.length === 0 ? (
-              <p className="text-neutral-600 mt-4">No bikes found.</p>
-            ) : (
-              <div className="space-y-4 mt-4">
-                {adminBikes.map((b) => (
-                  <div key={b._id} className="border border-neutral-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="space-y-1">
-                        <p className="font-semibold">{b.brand} {b.model} ({b.bikeNumber})</p>
-                        <p className="text-sm text-neutral-600">
-                          Owner: {b.owner?.name} ({b.owner?.phone}) | Approval: {b.approvalStatus}
-                        </p>
-                        <p className="text-sm text-neutral-600">
-                          Bike Status: {b.status} | Available (Browse): {String(!!b.isAvailable)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => toggleExpanded(`bikeAll:${b._id}`)}
-                        className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+          {/* PENDING APPROVALS TAB */}
+          {activeTab === 'approvals' && (
+            <div className="space-y-8 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-neutral-900">Pending Approvals Queue</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Review and verify KYC documents and bike submissions before approving
+                  </p>
+                </div>
+                <span className="px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs rounded-xl">
+                  {totalPendingCount} Items Pending
+                </span>
+              </div>
+
+              {/* Pending Customers */}
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center justify-between">
+                  <span>Pending Customers ({pendingApprovals.customers?.length || 0})</span>
+                </h3>
+                {pendingApprovals.customers?.length === 0 ? (
+                  <p className="text-xs text-neutral-400 py-4">No pending customer verifications.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingApprovals.customers.map((c) => (
+                      <div
+                        key={c._id}
+                        className="p-4 rounded-xl border border-neutral-200 hover:border-primary-400 transition-colors bg-neutral-50/50 flex flex-col justify-between"
                       >
-                        {expandedRows[`bikeAll:${b._id}`] ? 'Hide' : 'View'} Details
-                      </button>
-                    </div>
-
-                    {expandedRows[`bikeAll:${b._id}`] && (
-                      <div className="mt-4 grid md:grid-cols-2 gap-6 border-t border-neutral-200 pt-4">
-                        <div className="space-y-2">
-                          <p className="text-sm text-neutral-600">
-                            <span className="font-semibold">Hourly:</span> ₹{b.pricing?.hourly} | <span className="font-semibold">Daily:</span> ₹{b.pricing?.daily}
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            <span className="font-semibold">Handover:</span> {b.handoverLocation?.address || '—'}
-                          </p>
-                          {b.description && (
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Description:</span> {b.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-6">
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-neutral-700">Bike Images</p>
-                            {renderImageGallery(b.images)}
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-bold text-neutral-900 text-sm">{c.name}</p>
+                              <p className="text-xs text-neutral-500">{c.phone} • {c.email}</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              KYC Pending
+                            </span>
+                          </div>
+                          <div className="mt-3 text-xs text-neutral-600 space-y-1">
+                            <p>License: <span className="font-mono">{c.drivingLicense?.number || '—'}</span></p>
+                            <p>Aadhaar: <span className="font-mono">{c.aadhaarNumber || '—'}</span></p>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'approvals' && (
-          <div className="space-y-6">
-            {/* Pending Customers */}
-            {pendingApprovals.customers?.length > 0 && (
-              <div className="card">
-                <h2 className="text-2xl font-semibold mb-4">Pending Customer Approvals</h2>
-                <div className="space-y-4">
-                  {pendingApprovals.customers.map((customer) => (
-                    <div key={customer._id} className="border border-neutral-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold">{customer.name}</p>
-                          <p className="text-sm text-neutral-600">{customer.phone}</p>
-                          <p className="text-sm text-neutral-600">{customer.email}</p>
-                        </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-neutral-200/60">
                           <button
-                            onClick={() => toggleExpanded(`customer:${customer._id}`)}
-                            className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                            onClick={() => handleOpenDetail('customer', c)}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
                           >
-                            {expandedRows[`customer:${customer._id}`] ? 'Hide' : 'View'} Details
+                            Inspect Docs
                           </button>
                           <button
-                            onClick={() => handleApprove('customer', customer._id)}
-                            className="px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800"
+                            onClick={() => handleApprove('customer', c._id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white"
                           >
                             Approve
                           </button>
-                          <button
-                            onClick={() => {
-                              const note = prompt('Enter rejection reason:');
-                              if (note) handleReject('customer', customer._id, note);
-                            }}
-                            className="px-4 py-2 bg-accent-600 text-white rounded-lg hover:bg-accent-700"
-                          >
-                            Reject
-                          </button>
                         </div>
                       </div>
-
-                      {expandedRows[`customer:${customer._id}`] && (
-                        <div className="mt-4 grid md:grid-cols-2 gap-6 border-t border-neutral-200 pt-4">
-                          <div className="space-y-2">
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Created:</span> {formatDateTime(customer.createdAt)}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Address:</span>{' '}
-                              {customer.address?.street || customer.address?.city || customer.address?.state
-                                ? `${customer.address?.street || ''} ${customer.address?.city || ''} ${customer.address?.state || ''} ${customer.address?.pincode || ''}`.trim()
-                                : '—'}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">License Number:</span> {customer.drivingLicense?.number || '—'}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Aadhaar Number:</span> {customer.aadhaarNumber || '—'}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">PAN Number:</span> {customer.panNumber || '—'}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Status:</span> {customer.customerApprovalStatus || 'pending'}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-6">
-                            {renderDoc('Driving License', customer.drivingLicense?.documentUrl)}
-                            {renderDoc('Selfie', customer.selfieUrl)}
-                            {renderDoc('Aadhaar Card', customer.aadhaarDocumentUrl)}
-                            {renderDoc('PAN Card', customer.panDocumentUrl)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* Pending Owners */}
-            {pendingApprovals.owners?.length > 0 && (
-              <div className="card">
-                <h2 className="text-2xl font-semibold mb-4">Pending Owner Approvals</h2>
-                <div className="space-y-4">
-                  {pendingApprovals.owners.map((owner) => (
-                    <div key={owner._id} className="border border-neutral-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
+              {/* Pending Owners */}
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center justify-between">
+                  <span>Pending Owners ({pendingApprovals.owners?.length || 0})</span>
+                </h3>
+                {pendingApprovals.owners?.length === 0 ? (
+                  <p className="text-xs text-neutral-400 py-4">No pending owner verifications.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingApprovals.owners.map((o) => (
+                      <div
+                        key={o._id}
+                        className="p-4 rounded-xl border border-neutral-200 hover:border-primary-400 transition-colors bg-neutral-50/50 flex flex-col justify-between"
+                      >
                         <div>
-                          <p className="font-semibold">{owner.name}</p>
-                          <p className="text-sm text-neutral-600">{owner.phone}</p>
-                          <p className="text-sm text-neutral-600">{owner.email}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => toggleExpanded(`owner:${owner._id}`)}
-                            className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                          >
-                            {expandedRows[`owner:${owner._id}`] ? 'Hide' : 'Verify'} Details
-                          </button>
-                        </div>
-                      </div>
-
-                      {expandedRows[`owner:${owner._id}`] && (
-                        <div className="mt-4 border-t border-neutral-200 pt-4">
-                          <div className="grid md:grid-cols-2 gap-6 mb-6">
-                            <div className="space-y-3">
-                              <h3 className="font-semibold text-lg border-b pb-2">Owner Details</h3>
-                              <p className="text-sm text-neutral-600">
-                                <span className="font-semibold">Created:</span> {formatDateTime(owner.createdAt)}
-                              </p>
-                              <p className="text-sm text-neutral-600">
-                                <span className="font-semibold">Name:</span> {owner.name}
-                              </p>
-                              <p className="text-sm text-neutral-600">
-                                <span className="font-semibold">Address:</span>{' '}
-                                {owner.address?.street || owner.address?.city || owner.address?.state
-                                  ? `${owner.address?.street || ''} ${owner.address?.city || ''} ${owner.address?.state || ''} ${owner.address?.pincode || ''}`.trim()
-                                  : '—'}
-                              </p>
-                              <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200">
-                                <p className="text-sm text-neutral-800 mb-1">
-                                  <span className="font-semibold">Aadhaar Number:</span> {owner.aadhaarNumber || '—'}
-                                </p>
-                                <p className="text-sm text-neutral-800">
-                                  <span className="font-semibold">PAN Number:</span> {owner.panNumber || '—'}
-                                </p>
-                              </div>
-                              <p className="text-sm text-neutral-600">
-                                <span className="font-semibold">Current Status:</span> {owner.ownerApprovalStatus || 'pending'}
-                              </p>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-bold text-neutral-900 text-sm">{o.name}</p>
+                              <p className="text-xs text-neutral-500">{o.phone} • {o.email}</p>
                             </div>
-                            <div className="space-y-6">
-                              <h3 className="font-semibold text-lg border-b pb-2">Documents</h3>
-                              {renderDoc('Aadhaar Card', owner.aadhaarDocumentUrl)}
-                              {renderDoc('PAN Card', owner.panDocumentUrl)}
-                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              Owner Pending
+                            </span>
                           </div>
-
-                          <div className="flex justify-end gap-3 pt-4 border-t border-neutral-100">
-                            <button
-                              onClick={() => {
-                                const note = prompt('Enter rejection reason:');
-                                if (note) handleReject('owner', owner._id, note);
-                              }}
-                              className="px-6 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
-                            >
-                              Reject Owner
-                            </button>
-                            <button
-                              onClick={() => handleApprove('owner', owner._id)}
-                              className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 font-medium"
-                            >
-                              Approve Owner
-                            </button>
+                          <div className="mt-3 text-xs text-neutral-600 space-y-1">
+                            <p>Aadhaar: <span className="font-mono">{o.aadhaarNumber || '—'}</span></p>
+                            <p>PAN: <span className="font-mono">{o.panNumber || '—'}</span></p>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Pending Bikes */}
-            {pendingApprovals.bikes?.length > 0 && (
-              <div className="card">
-                <h2 className="text-2xl font-semibold mb-4">Pending Bike Approvals</h2>
-                <div className="space-y-4">
-                  {pendingApprovals.bikes.map((bike) => (
-                    <div key={bike._id} className="border border-neutral-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold">{bike.brand} {bike.model}</p>
-                          <p className="text-sm text-neutral-600">Number: {bike.bikeNumber}</p>
-                          <p className="text-sm text-neutral-600">Owner: {bike.owner?.name}</p>
-                        </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-neutral-200/60">
                           <button
-                            onClick={() => toggleExpanded(`bike:${bike._id}`)}
-                            className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                            onClick={() => handleOpenDetail('owner', o)}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
                           >
-                            {expandedRows[`bike:${bike._id}`] ? 'Hide' : 'View'} Details
+                            Inspect Docs
                           </button>
                           <button
-                            onClick={() => handleApprove('bike', bike._id)}
-                            className="px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800"
+                            onClick={() => handleApprove('owner', o._id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white"
                           >
                             Approve
                           </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Bikes */}
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center justify-between">
+                  <span>Pending Bike Listings ({pendingApprovals.bikes?.length || 0})</span>
+                </h3>
+                {pendingApprovals.bikes?.length === 0 ? (
+                  <p className="text-xs text-neutral-400 py-4">No pending bike listings.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingApprovals.bikes.map((b) => (
+                      <div
+                        key={b._id}
+                        className="p-4 rounded-xl border border-neutral-200 hover:border-primary-400 transition-colors bg-neutral-50/50 flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-bold text-neutral-900 text-sm">{b.brand} {b.model}</p>
+                              <p className="text-xs text-neutral-500 font-mono">{b.bikeNumber}</p>
+                              <p className="text-xs text-neutral-500 mt-1">Owner: {b.owner?.name}</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              Bike Approval
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs font-bold text-neutral-900">₹{b.pricing?.daily}/day</p>
+                        </div>
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-neutral-200/60">
                           <button
-                            onClick={() => {
-                              const note = prompt('Enter rejection reason:');
-                              if (note) handleReject('bike', bike._id, note);
-                            }}
-                            className="px-4 py-2 bg-accent-600 text-white rounded-lg hover:bg-accent-700"
+                            onClick={() => handleOpenDetail('bike', b)}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
                           >
-                            Reject
+                            Inspect Bike & RC
+                          </button>
+                          <button
+                            onClick={() => handleApprove('bike', b._id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white"
+                          >
+                            Approve
                           </button>
                         </div>
                       </div>
-
-                      {expandedRows[`bike:${bike._id}`] && (
-                        <div className="mt-4 grid md:grid-cols-2 gap-6 border-t border-neutral-200 pt-4">
-                          <div className="space-y-2">
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Year:</span> {bike.manufacturingYear}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Mileage:</span> {bike.mileage} km
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Condition:</span> {bike.condition}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Hourly:</span> ₹{bike.pricing?.hourly}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Daily:</span> ₹{bike.pricing?.daily}
-                            </p>
-                            <p className="text-sm text-neutral-600">
-                              <span className="font-semibold">Handover:</span> {bike.handoverLocation?.address || '—'}
-                            </p>
-                            {bike.description && (
-                              <p className="text-sm text-neutral-600">
-                                <span className="font-semibold">Description:</span> {bike.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="space-y-6">
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-neutral-700">Bike Images</p>
-                              {renderImageGallery(bike.images)}
-                            </div>
-                            {renderDoc('RC Document', bike.documents?.rc?.documentUrl)}
-                            {renderDoc('PUC Document', bike.documents?.puc?.documentUrl)}
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-neutral-700">Insurance</p>
-                              {bike.documents?.insurance?.documentUrl ? (
-                                <>
-                                  <a
-                                    href={bike.documents.insurance.documentUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-sm text-primary-700 underline break-all"
-                                  >
-                                    Open document
-                                  </a>
-                                  <p className="text-sm text-neutral-600">
-                                    <span className="font-semibold">Expiry:</span> {formatDateTime(bike.documents.insurance.expiryDate)}
-                                  </p>
-                                </>
-                              ) : (
-                                <p className="text-sm text-neutral-500">Not uploaded</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {pendingApprovals.customers?.length === 0 &&
-              pendingApprovals.owners?.length === 0 &&
-              pendingApprovals.bikes?.length === 0 && (
-                <div className="card text-center py-12">
-                  <p className="text-xl text-neutral-600">No pending approvals</p>
-                </div>
-              )}
-          </div>
-        )}
-        {activeTab === 'customers' && (
-          <div className="card">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-2xl font-semibold">All Customers</h2>
-              <button
-                onClick={fetchCustomers}
-                className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                disabled={loadingTabData}
-              >
-                {loadingTabData ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-
-            {adminCustomers.length === 0 ? (
-              <p className="text-neutral-600 mt-4">No customers found.</p>
-            ) : (
-              <div className="space-y-4 mt-4">
-                {adminCustomers.map((customer) => (
-                  <div key={customer._id} className="border border-neutral-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="space-y-1">
-                        <p className="font-semibold">{customer.name}</p>
-                        <p className="text-sm text-neutral-600">
-                          {customer.phone} | {customer.email}
-                        </p>
-                        <p className="text-sm text-neutral-600">
-                          Status: <span className={`font-semibold ${customer.customerApprovalStatus === 'approved' ? 'text-green-600' : customer.customerApprovalStatus === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                            {customer.customerApprovalStatus || 'pending'}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => toggleExpanded(`activeCustomer:${customer._id}`)}
-                        className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                      >
-                        {expandedRows[`activeCustomer:${customer._id}`] ? 'Hide' : 'View'} Details
-                      </button>
-                    </div>
-
-                    {expandedRows[`activeCustomer:${customer._id}`] && (
-                      <div className="mt-4 border-t border-neutral-200 pt-4">
-                        <div className="grid md:grid-cols-2 gap-6">
-                          <div className="space-y-2 text-sm text-neutral-600">
-                            <p><span className="font-semibold">Joined:</span> {formatDateTime(customer.createdAt)}</p>
-                            <p>
-                              <span className="font-semibold">Address:</span>{' '}
-                              {customer.address?.street || customer.address?.city || customer.address?.state
-                                ? `${customer.address?.street || ''} ${customer.address?.city || ''} ${customer.address?.state || ''} ${customer.address?.pincode || ''}`.trim()
-                                : '—'}
-                            </p>
-                            <p><span className="font-semibold">License No:</span> {customer.drivingLicense?.number || '—'}</p>
-                            <p><span className="font-semibold">Aadhaar No:</span> {customer.aadhaarNumber || '—'}</p>
-                            <p><span className="font-semibold">PAN No:</span> {customer.panNumber || '—'}</p>
-                            <p><span className="font-semibold">Active:</span> {String(customer.isActive)}</p>
-                          </div>
-                          <div className="flex items-center gap-4 flex-wrap">
-                            {renderDoc('Driving License', customer.drivingLicense?.documentUrl)}
-                            {renderDoc('Selfie', customer.selfieUrl)}
-                            {renderDoc('Aadhaar', customer.aadhaarDocumentUrl)}
-                            {renderDoc('PAN', customer.panDocumentUrl)}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'owners' && (
-          <div className="card">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-2xl font-semibold">All Owners</h2>
-              <button
-                onClick={fetchOwners}
-                className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                disabled={loadingTabData}
-              >
-                {loadingTabData ? 'Loading...' : 'Refresh'}
-              </button>
             </div>
+          )}
 
-            {adminOwners.length === 0 ? (
-              <p className="text-neutral-600 mt-4">No owners found.</p>
-            ) : (
-              <div className="space-y-4 mt-4">
-                {adminOwners.map((owner) => (
-                  <div key={owner._id} className="border border-neutral-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="space-y-1">
-                        <p className="font-semibold">{owner.name}</p>
-                        <p className="text-sm text-neutral-600">
-                          {owner.phone} | {owner.email}
-                        </p>
-                        <p className="text-sm text-neutral-600">
-                          Status: <span className={`font-semibold ${owner.ownerApprovalStatus === 'approved' ? 'text-green-600' : owner.ownerApprovalStatus === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                            {owner.ownerApprovalStatus || 'pending'}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => toggleExpanded(`activeOwner:${owner._id}`)}
-                        className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+          {/* ALL BOOKINGS TAB */}
+          {activeTab === 'bookings' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">All Bookings Management</h2>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Search, inspect, and filter system-wide bookings
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchBookings}
+                    disabled={loadingTabData}
+                    className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold rounded-xl transition-colors"
+                  >
+                    {loadingTabData ? 'Refreshing...' : 'Apply Filters'}
+                  </button>
+                </div>
+
+                {/* Filter Controls */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <select
+                    value={bookingFilters.status}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, status: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Status: All</option>
+                    <option value="pending">pending</option>
+                    <option value="confirmed">confirmed</option>
+                    <option value="ongoing">ongoing</option>
+                    <option value="completed">completed</option>
+                    <option value="cancelled">cancelled</option>
+                  </select>
+
+                  <select
+                    value={bookingFilters.sentToOwner}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, sentToOwner: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Sent to Owner: All</option>
+                    <option value="true">Sent (true)</option>
+                    <option value="false">Draft (false)</option>
+                  </select>
+
+                  <select
+                    value={bookingFilters.ownerDecisionStatus}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, ownerDecisionStatus: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Owner Decision: All</option>
+                    <option value="pending">pending</option>
+                    <option value="accepted">accepted</option>
+                    <option value="declined">declined</option>
+                  </select>
+
+                  <select
+                    value={bookingFilters.agreementAccepted}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, agreementAccepted: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Agreement: All</option>
+                    <option value="true">Accepted</option>
+                    <option value="false">Pending</option>
+                  </select>
+
+                  <select
+                    value={bookingFilters.advancePaymentStatus}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, advancePaymentStatus: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Advance: All</option>
+                    <option value="pending">pending</option>
+                    <option value="paid">paid</option>
+                  </select>
+
+                  <select
+                    value={bookingFilters.securityDepositStatus}
+                    onChange={(e) => setBookingFilters((p) => ({ ...p, securityDepositStatus: e.target.value }))}
+                    className="p-2.5 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Deposit: All</option>
+                    <option value="pending">pending</option>
+                    <option value="collected">collected</option>
+                    <option value="refunded">refunded</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bookings List */}
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                {adminBookings.length === 0 ? (
+                  <p className="text-center py-12 text-sm text-neutral-400">
+                    No bookings found matching selected filters.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {adminBookings.map((b) => (
+                      <div
+                        key={b._id}
+                        data-booking-id={b._id}
+                        onClick={() => handleOpenBookingDetails(b._id)}
+                        className="p-4 rounded-xl border border-neutral-200/80 hover:border-primary-300 hover:shadow-xs transition-all cursor-pointer group"
                       >
-                        {expandedRows[`activeOwner:${owner._id}`] ? 'Hide' : 'View'} Details
-                      </button>
-                    </div>
-
-                    {expandedRows[`activeOwner:${owner._id}`] && (
-                      <div className="mt-4 border-t border-neutral-200 pt-4">
-                        <div className="grid md:grid-cols-2 gap-6">
-                          <div className="space-y-2 text-sm text-neutral-600">
-                            <p><span className="font-semibold">Joined:</span> {formatDateTime(owner.createdAt)}</p>
-                            <p>
-                              <span className="font-semibold">Address:</span>{' '}
-                              {owner.address?.street || owner.address?.city || owner.address?.state
-                                ? `${owner.address?.street || ''} ${owner.address?.city || ''} ${owner.address?.state || ''} ${owner.address?.pincode || ''}`.trim()
-                                : '—'}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <p className="font-bold text-neutral-900 text-sm group-hover:text-primary-700 transition-colors">
+                                {b.bike?.brand} {b.bike?.model}
+                              </p>
+                              <span className="font-mono text-xs text-primary-800 bg-primary-50 px-2 py-0.5 rounded-md">
+                                {b.bike?.bikeNumber}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-600">
+                              Customer: <span className="font-semibold">{b.customer?.name}</span> ({b.customer?.phone}) • Owner: <span className="font-semibold">{b.owner?.name}</span>
                             </p>
-                            <p><span className="font-semibold">Aadhaar No:</span> {owner.aadhaarNumber || '—'}</p>
-                            <p><span className="font-semibold">PAN No:</span> {owner.panNumber || '—'}</p>
-                            <p><span className="font-semibold">Active:</span> {String(owner.isActive)}</p>
+                            <p className="text-xs text-neutral-500">
+                              {formatDateTime(b.startTime, b.startTimeStr)} — {formatDateTime(b.endTime, b.endTimeStr)}
+                            </p>
+                            <p className="text-xs font-bold text-neutral-900">
+                              Total: ₹{b.totalAmount} • Deposit: ₹{b.securityDeposit} • Advance: ₹{b.advancePayment?.requiredAmount || 0} ({b.advancePayment?.status || 'pending'})
+                            </p>
                           </div>
-                          <div className="flex items-center gap-4 flex-wrap">
-                            {renderDoc('Aadhaar', owner.aadhaarDocumentUrl)}
-                            {renderDoc('PAN', owner.panDocumentUrl)}
+
+                          <div className="text-right flex flex-col items-end space-y-2">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                b.status === 'confirmed'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : b.status === 'ongoing'
+                                  ? 'bg-cyan-100 text-cyan-800 animate-pulse'
+                                  : b.status === 'completed'
+                                  ? 'bg-indigo-100 text-indigo-800'
+                                  : b.status === 'cancelled'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {b.status}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpanded(`booking:${b._id}`);
+                                }}
+                                className="text-xs text-neutral-500 hover:text-neutral-700 font-medium underline"
+                              >
+                                {expandedRows[`booking:${b._id}`] ? 'Hide Audit' : 'Audit'}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenBookingDetails(b._id);
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
+                              >
+                                View Details →
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        {owner.ownerApprovalStatus === 'pending' && (
-                          <div className="flex justify-end gap-3 pt-4 border-t border-neutral-100 mt-4">
-                            <button
-                              onClick={() => {
-                                const note = prompt('Enter rejection reason:');
-                                if (note) handleReject('owner', owner._id, note);
-                              }}
-                              className="px-6 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
-                            >
-                              Reject Owner
-                            </button>
-                            <button
-                              onClick={() => handleApprove('owner', owner._id)}
-                              className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 font-medium"
-                            >
-                              Approve Owner
-                            </button>
+                        {/* Expanded details */}
+                        {expandedRows[`booking:${b._id}`] && (
+                          <div className="mt-4 pt-4 border-t border-neutral-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-neutral-600 bg-neutral-50/50 p-3 rounded-xl">
+                            <div className="space-y-1.5">
+                              <p><span className="font-semibold">Agreement Accepted:</span> {String(!!b.agreementAccepted)}</p>
+                              <p><span className="font-semibold">Agreement Time:</span> {formatDateTime(b.agreementTimestamp)}</p>
+                              <p><span className="font-semibold">Advance Txn ID:</span> {b.advancePayment?.transactionId || '—'}</p>
+                              <p><span className="font-semibold">Advance Paid At:</span> {formatDateTime(b.advancePayment?.paidAt)}</p>
+                              <p><span className="font-semibold">Owner Decision Note:</span> {b.ownerDecision?.note || '—'}</p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p><span className="font-semibold">Deposit Status:</span> {b.securityDepositStatus || 'pending'}</p>
+                              <p><span className="font-semibold">Handover Address:</span> {b.handoverLocation?.address || '—'}</p>
+                              <p><span className="font-semibold">Actual Handover:</span> {formatDateTime(b.actualHandoverTime)}</p>
+                              <p><span className="font-semibold">Actual Return:</span> {formatDateTime(b.actualReturnTime)}</p>
+                              <p><span className="font-semibold">Payment Status:</span> {b.paymentStatus}</p>
+                            </div>
                           </div>
                         )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+
+          {/* LIVE RIDES TAB */}
+          {activeTab === 'live' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-neutral-900 flex items-center gap-2">
+                    <span className="flex h-3 w-3 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    Live Active Rentals
+                  </h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Motorbikes currently dispatched and active on the road
+                  </p>
+                </div>
+                <button
+                  onClick={fetchLiveRentals}
+                  className="px-4 py-2 rounded-xl bg-white border border-neutral-200 text-xs font-bold text-neutral-700 shadow-xs hover:bg-neutral-50"
+                >
+                  Refresh Live
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 shadow-sm">
+                {liveRentals.length === 0 ? (
+                  <div className="text-center py-12 text-neutral-400">
+                    <FiActivity className="text-3xl mx-auto mb-2 text-neutral-300" />
+                    <p className="text-sm">No ongoing rides in progress right now.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {liveRentals.map((r) => (
+                      <div
+                        key={r._id}
+                        data-booking-id={r._id}
+                        onClick={() => handleOpenBookingDetails(r._id)}
+                        className="p-5 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 space-y-3 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-neutral-900 text-sm group-hover:text-primary-700 transition-colors">
+                            {r.bike?.brand} {r.bike?.model}
+                          </span>
+                          <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                            {r.bike?.bikeNumber}
+                          </span>
+                        </div>
+                        <div className="text-xs text-neutral-600 space-y-1">
+                          <p>Customer: <span className="font-semibold text-neutral-800">{r.customer?.name}</span> ({r.customer?.phone})</p>
+                          <p>Owner: <span className="font-semibold text-neutral-800">{r.owner?.name}</span> ({r.owner?.phone})</p>
+                        </div>
+                        <div className="pt-2 border-t border-emerald-100 text-xs text-neutral-500 flex justify-between">
+                          <span>Started: {formatDateTime(r.actualHandoverTime)}</span>
+                          <span>Scheduled Return: {formatDateTime(r.endTime)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-emerald-100/80 flex items-center justify-between text-xs text-emerald-700 font-bold group-hover:text-emerald-900">
+                          <span>View Booking & Agreement Details</span>
+                          <span className="group-hover:translate-x-1 transition-transform">→</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ALL BIKES TAB */}
+          {activeTab === 'bikes' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-neutral-900">All Motorbikes Fleet</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Manage and inspect full bike inventory across owners
+                  </p>
+                </div>
+                <button
+                  onClick={fetchBikes}
+                  className="px-4 py-2 rounded-xl bg-white border border-neutral-200 text-xs font-bold text-neutral-700 shadow-xs hover:bg-neutral-50"
+                >
+                  Refresh Fleet
+                </button>
+              </div>
+
+              <AdminRecentBikesTable
+                bikes={adminBikes}
+                onOpenDetail={handleOpenDetail}
+                onApproveBike={(id) => handleApprove('bike', id)}
+                onRejectBike={(id) => {
+                  const targetBike = adminBikes.find((b) => b._id === id);
+                  handleOpenDetail('bike', targetBike);
+                }}
+              />
+            </div>
+          )}
+
+          {/* ALL CUSTOMERS TAB */}
+          {activeTab === 'customers' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-neutral-900">All Customers Directory</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Inspect customer accounts, KYC documents, and rental histories
+                  </p>
+                </div>
+                <button
+                  onClick={fetchCustomers}
+                  className="px-4 py-2 rounded-xl bg-white border border-neutral-200 text-xs font-bold text-neutral-700 shadow-xs hover:bg-neutral-50"
+                >
+                  Refresh Customers
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-neutral-200/80 overflow-hidden shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50/75 border-b border-neutral-200 text-[11px] uppercase tracking-wider text-neutral-500 font-bold">
+                      <th className="py-3.5 px-4">#</th>
+                      <th className="py-3.5 px-4">Customer</th>
+                      <th className="py-3.5 px-4">Phone / Email</th>
+                      <th className="py-3.5 px-4">License No.</th>
+                      <th className="py-3.5 px-4">KYC Status</th>
+                      <th className="py-3.5 px-4">Registered</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-sm">
+                    {adminCustomers.map((cust, idx) => (
+                      <tr
+                        key={cust._id}
+                        onClick={() => handleOpenDetail('customer', cust)}
+                        className="hover:bg-neutral-50 cursor-pointer transition-colors"
+                      >
+                        <td className="py-3.5 px-4 text-neutral-400 text-xs font-semibold">{idx + 1}</td>
+                        <td className="py-3.5 px-4 font-bold text-neutral-900">{cust.name}</td>
+                        <td className="py-3.5 px-4 text-xs text-neutral-600">{cust.phone} • {cust.email}</td>
+                        <td className="py-3.5 px-4 font-mono text-xs">{cust.drivingLicense?.number || '—'}</td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              cust.customerApprovalStatus === 'approved'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : cust.customerApprovalStatus === 'pending'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-neutral-100 text-neutral-700'
+                            }`}
+                          >
+                            {cust.customerApprovalStatus || 'pending'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-xs text-neutral-500">
+                          {formatDateTime(cust.createdAt)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail('customer', cust);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                          >
+                            View Docs
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ALL OWNERS TAB */}
+          {activeTab === 'owners' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-neutral-900">All Bike Owners Directory</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Inspect host partners, identity documents, and registered fleet
+                  </p>
+                </div>
+                <button
+                  onClick={fetchOwners}
+                  className="px-4 py-2 rounded-xl bg-white border border-neutral-200 text-xs font-bold text-neutral-700 shadow-xs hover:bg-neutral-50"
+                >
+                  Refresh Owners
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-neutral-200/80 overflow-hidden shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50/75 border-b border-neutral-200 text-[11px] uppercase tracking-wider text-neutral-500 font-bold">
+                      <th className="py-3.5 px-4">#</th>
+                      <th className="py-3.5 px-4">Owner</th>
+                      <th className="py-3.5 px-4">Phone / Email</th>
+                      <th className="py-3.5 px-4">Aadhaar / PAN</th>
+                      <th className="py-3.5 px-4">Approval Status</th>
+                      <th className="py-3.5 px-4">Registered</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-sm">
+                    {adminOwners.map((owner, idx) => (
+                      <tr
+                        key={owner._id}
+                        onClick={() => handleOpenDetail('owner', owner)}
+                        className="hover:bg-neutral-50 cursor-pointer transition-colors"
+                      >
+                        <td className="py-3.5 px-4 text-neutral-400 text-xs font-semibold">{idx + 1}</td>
+                        <td className="py-3.5 px-4 font-bold text-neutral-900">{owner.name}</td>
+                        <td className="py-3.5 px-4 text-xs text-neutral-600">{owner.phone} • {owner.email}</td>
+                        <td className="py-3.5 px-4 font-mono text-xs">
+                          {owner.aadhaarNumber ? `Aadhaar: ${owner.aadhaarNumber}` : '—'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              owner.ownerApprovalStatus === 'approved'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : owner.ownerApprovalStatus === 'pending'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-neutral-100 text-neutral-700'
+                            }`}
+                          >
+                            {owner.ownerApprovalStatus || 'pending'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-xs text-neutral-500">
+                          {formatDateTime(owner.createdAt)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail('owner', owner);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                          >
+                            View Docs
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
+
+      {/* Global Interactive Entity Detail Modal (Customer, Owner, Bike) */}
+      <AdminEntityDetailModal
+        isOpen={modalConfig.isOpen}
+        onClose={handleCloseModal}
+        type={modalConfig.type}
+        data={modalConfig.data}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
     </div>
   );
 };
 
 export default AdminPanel;
-

@@ -4,6 +4,14 @@ import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import LocationSearchInput from '../components/maps/LocationSearchInput';
+import GoogleMapView from '../components/maps/GoogleMapView';
+import OSMLocationSearchInput from '../components/maps/osm/OSMLocationSearchInput';
+import OSMMapView from '../components/maps/osm/OSMMapView';
+import { isOsmProvider } from '../config/mapProvider';
+
+const ActiveLocationSearchInput = isOsmProvider() ? OSMLocationSearchInput : LocationSearchInput;
+const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
 
 const CreateBike = () => {
   const { user } = useAuth();
@@ -20,8 +28,10 @@ const CreateBike = () => {
     dailyPrice: '',
     handoverLocation: {
       address: '',
-      lat: '',
-      lng: ''
+      coordinates: {
+        lat: null,
+        lng: null
+      }
     }
   });
   const [images, setImages] = useState({
@@ -51,21 +61,23 @@ const [uploading, setUploading] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name.startsWith('handoverLocation.')) {
-      const field = name.split('.')[1];
-      setFormData({
-        ...formData,
-        handoverLocation: {
-          ...formData.handoverLocation,
-          [field]: value
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  };
+
+  const handleLocationSelect = (location) => {
+    setFormData(prev => ({
+      ...prev,
+      handoverLocation: {
+        address: location.address || '',
+        coordinates: {
+          lat: location.coordinates?.lat != null ? Number(location.coordinates.lat) : null,
+          lng: location.coordinates?.lng != null ? Number(location.coordinates.lng) : null
         }
-      });
-    } else {
-      setFormData({
-        ...formData,
-        [name]: value
-      });
-    }
+      }
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -75,9 +87,28 @@ const [uploading, setUploading] = useState({});
     try {
       let bikeId = createdBikeId;
 
-      // 1. Create Bike Listing (Only if not already created)
+      // 1. Validate that location has coordinates
+      if (!formData.handoverLocation?.coordinates?.lat || !formData.handoverLocation?.coordinates?.lng) {
+        toast.error('Please select a location from the suggestions or click 🎯 to verify coordinates before creating the listing.');
+        setLoading(false);
+        return;
+      }
+
+      // 2. Create Bike Listing (Only if not already created)
       if (!bikeId) {
-        const response = await api.post('/api/bikes', formData);
+        // Ensure handoverLocation strictly follows { address, coordinates: { lat, lng } }
+        const bikePayload = {
+          ...formData,
+          handoverLocation: {
+            address: formData.handoverLocation.address,
+            coordinates: {
+              lat: formData.handoverLocation.coordinates?.lat != null ? Number(formData.handoverLocation.coordinates.lat) : undefined,
+              lng: formData.handoverLocation.coordinates?.lng != null ? Number(formData.handoverLocation.coordinates.lng) : undefined
+            }
+          }
+        };
+
+        const response = await api.post('/api/bikes', bikePayload);
         bikeId = response.data.bike._id;
         setCreatedBikeId(bikeId);
       }
@@ -285,15 +316,22 @@ const [uploading, setUploading] = useState({});
 
           <div>
             <label className="block text-sm font-medium mb-2">Handover Location Address *</label>
-            <input
-              type="text"
-              name="handoverLocation.address"
+            <ActiveLocationSearchInput
               value={formData.handoverLocation.address}
-              onChange={handleChange}
-              className="input-field"
-              placeholder="Enter address"
+              onLocationSelect={handleLocationSelect}
+              placeholder="Search pickup location or address..."
               required
             />
+            {formData.handoverLocation.coordinates?.lat != null &&
+             formData.handoverLocation.coordinates?.lng != null && (
+              <div className="mt-3">
+                <ActiveMapView
+                  coordinates={formData.handoverLocation.coordinates}
+                  address={formData.handoverLocation.address}
+                  height="200px"
+                />
+              </div>
+            )}
           </div>
 
           <div className="border-t border-green-600 pt-6">

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
@@ -15,8 +15,20 @@ const Login = () => {
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (user.role === 'owner') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/bikes', { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   // ✅ Validation function
   const validate = (name, value) => {
@@ -87,7 +99,13 @@ const Login = () => {
     );
 
     if (result.success) {
-      navigate("/dashboard");
+      if (result.user?.role === 'admin') {
+        navigate("/admin", { replace: true });
+      } else if (result.user?.role === 'owner') {
+        navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/bikes", { replace: true });
+      }
     }
 
     setLoading(false);

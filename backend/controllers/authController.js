@@ -268,3 +268,31 @@ exports.resendOTP = async (req, res) => {
   }
 };
 
+// @desc    Check user role prior to authentication routing
+// @route   POST /api/auth/check-role
+// @access  Public
+exports.checkRole = async (req, res) => {
+  try {
+    const { phone, email } = req.body;
+    if (!phone && !email) {
+      return res.status(400).json({ message: 'Please provide phone or email' });
+    }
+
+    const user = await User.findOne({
+      $or: [
+        phone ? { phone } : null,
+        email ? { email } : null
+      ].filter(Boolean)
+    }).select('role');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found', role: null });
+    }
+
+    res.json({ role: user.role });
+  } catch (error) {
+    console.error('Check role error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+

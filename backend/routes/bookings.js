@@ -15,13 +15,19 @@ const {
   collectSecurityDeposit,
   startRental,
   endRental,
-  cancelBooking
+  cancelBooking,
+  updateBooking
 } = require('../controllers/bookingController');
 
 // @route   POST /api/bookings
 // @desc    Create new booking
 // @access  Private (Customer)
 router.post('/', auth, createBooking);
+
+// @route   PUT /api/bookings/:id
+// @desc    Update booking details (dates/times)
+// @access  Private
+router.put('/:id', auth, updateBooking);
 
 // @route   GET /api/bookings
 // @desc    Get all bookings (Admin)
@@ -62,6 +68,7 @@ router.post('/:id/owner/respond', auth, ownerRespondToBooking);
 // @desc    Customer authorizes security deposit (Dummy step)
 // @access  Private (Customer)
 router.post('/:id/security-deposit/authorize', auth, authorizeSecurityDeposit);
+router.post('/:id/authorize-deposit', auth, authorizeSecurityDeposit);
 
 // @route   POST /api/bookings/:id/security-deposit/collect
 // @desc    Owner marks security deposit collected at handover

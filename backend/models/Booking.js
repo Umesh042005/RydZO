@@ -37,6 +37,12 @@ const bookingSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  startTimeStr: {
+    type: String
+  },
+  endTimeStr: {
+    type: String
+  },
   duration: {
     hours: Number,
     days: Number

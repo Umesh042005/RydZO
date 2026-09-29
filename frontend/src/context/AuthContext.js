@@ -29,7 +29,20 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (phone, email, password) => {
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/login`, {
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
+      // Check role first so admin credentials hit the admin API directly
+      let endpoint = `${baseUrl}/api/auth/login`;
+      try {
+        const roleRes = await axios.post(`${baseUrl}/api/auth/check-role`, { phone, email });
+        if (roleRes.data?.role === 'admin') {
+          endpoint = `${baseUrl}/api/admin/login`;
+        }
+      } catch (err) {
+        // Continue to standard path if check-role is unavailable
+      }
+
+      const response = await axios.post(endpoint, {
         phone,
         email,
         password
@@ -41,8 +54,8 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(userData);
       
-      toast.success('Login successful!');
-      return { success: true };
+      toast.success(userData.role === 'admin' ? 'Admin login successful!' : 'Login successful!');
+      return { success: true, user: userData };
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed';
       toast.error(message);
