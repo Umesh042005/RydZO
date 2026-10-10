@@ -8,6 +8,12 @@ const http = require('http');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
+// Optional DNS override (e.g. DNS_SERVERS=8.8.8.8,1.1.1.1) for machines where Node's
+// resolver cannot look up the mongodb+srv record (querySrv ECONNREFUSED).
+if (process.env.DNS_SERVERS) {
+  require('dns').setServers(process.env.DNS_SERVERS.split(',').map(s => s.trim()).filter(Boolean));
+}
+
 // Validate Cloudinary configuration at startup (secure)
 try {
   const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
@@ -31,6 +37,14 @@ try {
 const app = express();
 const server = http.createServer(app);
 // Socket.IO removed
+
+// Behind a hosting proxy every request arrives from the proxy's IP. Trust one proxy hop so
+// req.ip (used by the rate limiters) is the real client. Render sets RENDER=true;
+// TRUST_PROXY overrides (number of hops, or 0 to disable).
+const trustProxy = process.env.TRUST_PROXY !== undefined
+  ? Number(process.env.TRUST_PROXY)
+  : (process.env.RENDER ? 1 : 0);
+if (trustProxy > 0) app.set('trust proxy', trustProxy);
 
 // Middleware
 app.use(helmet());

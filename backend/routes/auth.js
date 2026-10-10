@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { register, login, sendOTP, verifyOTP, resendOTP, checkRole } = require('../controllers/authController');
-const { authLimiter, strictLimiter } = require('../middleware/rateLimit');
+const { authLimiter, otpVerifyLimiter } = require('../middleware/rateLimit');
 
 router.use(authLimiter);
 
@@ -28,7 +28,7 @@ router.post('/send-otp', sendOTP);
 // @route   POST /api/auth/verify-otp
 // @desc    Verify OTP
 // @access  Public
-router.post('/verify-otp', strictLimiter, verifyOTP);
+router.post('/verify-otp', otpVerifyLimiter, verifyOTP);
 
 // @route   POST /api/auth/resend-otp
 // @desc    Resend OTP

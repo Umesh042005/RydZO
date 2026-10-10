@@ -65,7 +65,7 @@ const OwnerBookings = () => {
             <FiCalendar className="text-6xl text-neutral-400 mx-auto mb-4" />
             <p className="text-xl text-neutral-600 mb-2">No booking requests yet</p>
             <p className="text-sm text-neutral-500">
-              Requests appear here after customers accept the agreement and complete advance payment.
+              Requests appear here after customers accept the agreement and send the request.
             </p>
           </div>
         ) : (

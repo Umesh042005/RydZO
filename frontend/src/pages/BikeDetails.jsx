@@ -15,6 +15,12 @@ import { isOsmProvider } from '../config/mapProvider';
 const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
 const calculateRouteFromCurrentLocation = isOsmProvider() ? osmRouteCalc : googleRouteCalc;
 
+// YYYY-MM-DD in the user's local timezone (toISOString would give the UTC date).
+const todayLocalDate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const BikeDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -92,9 +98,24 @@ const BikeDetails = () => {
       return;
     }
 
+    const startAt = new Date(`${bookingData.startDate}T${bookingData.startTime}`);
+    const endAt = new Date(`${bookingData.endDate}T${bookingData.endTime}`);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+      toast.error('Please choose a valid start and end date/time');
+      return;
+    }
+    if (startAt.getTime() < Date.now()) {
+      toast.error('Start time cannot be in the past');
+      return;
+    }
+    if (endAt <= startAt) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
     try {
-      const startTimeIso = new Date(`${bookingData.startDate}T${bookingData.startTime}`).toISOString();
-      const endTimeIso = new Date(`${bookingData.endDate}T${bookingData.endTime}`).toISOString();
+      const startTimeIso = startAt.toISOString();
+      const endTimeIso = endAt.toISOString();
 
       const startTimeStr = formatTime12Hour(bookingData.startTime);
       const endTimeStr = formatTime12Hour(bookingData.endTime);
@@ -235,7 +256,7 @@ const BikeDetails = () => {
                 <p><span className="font-semibold">Phone:</span> {bike.owner?.phone || '—'}</p>
               </div>
               <p className="text-sm text-neutral-500 mt-3">
-                Note: Booking request will be sent to the owner after you accept the agreement and complete advance payment.
+                Note: Booking request will be sent to the owner after you accept the agreement.
               </p>
             </div>
 
@@ -369,6 +390,7 @@ const BikeDetails = () => {
                         <input
                           type="date"
                           value={bookingData.startDate}
+                          min={todayLocalDate()}
                           onChange={(e) => setBookingData({ ...bookingData, startDate: e.target.value })}
                           className="input-field"
                           required
@@ -379,6 +401,7 @@ const BikeDetails = () => {
                         <input
                           type="date"
                           value={bookingData.endDate}
+                          min={bookingData.startDate || todayLocalDate()}
                           onChange={(e) => setBookingData({ ...bookingData, endDate: e.target.value })}
                           className="input-field"
                           required

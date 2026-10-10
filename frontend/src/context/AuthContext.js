@@ -66,8 +66,15 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/register`, userData);
-      toast.success('Registration successful! Please verify OTP.');
-      return { success: true, userId: response.data.userId };
+
+      // The API registers and signs in in one step; keep the session so /dashboard is reachable.
+      const { token, user: newUser } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(newUser));
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(newUser);
+
+      return { success: true, user: newUser };
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';
       toast.error(message);

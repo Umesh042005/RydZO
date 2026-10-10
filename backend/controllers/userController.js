@@ -149,7 +149,9 @@ exports.uploadCustomerIdentity = async (req, res) => {
       return res.status(400).json({ message: 'Please upload a document' });
     }
 
-    const { type, number } = req.body;
+    const { type } = req.body;
+    // Customers send `number`; the owner profile form sends aadhaarNumber/panNumber.
+    const number = req.body.number || (type === 'aadhaar' ? req.body.aadhaarNumber : req.body.panNumber);
     if (!['aadhaar', 'pan'].includes(type)) {
       return res.status(400).json({ message: 'Invalid document type' });
     }
@@ -169,7 +171,13 @@ exports.uploadCustomerIdentity = async (req, res) => {
       if (number) user.panNumber = number;
     }
 
-    user.customerApprovalStatus = 'pending';
+    // Re-uploading sends the account back to the admin review queue for its own role
+    // (a rejected owner previously stayed rejected because only the customer status was reset).
+    if (user.role === 'owner') {
+      user.ownerApprovalStatus = 'pending';
+    } else {
+      user.customerApprovalStatus = 'pending';
+    }
     await user.save();
 
     await notifyAdmins(`New ${type.toUpperCase()} uploaded by ${req.user.name}`, req.user._id);

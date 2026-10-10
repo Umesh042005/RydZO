@@ -6,6 +6,8 @@ import api from '../services/api';
 
 const NotificationContext = createContext();
 
+const NOTIFICATION_POLL_MS = 60 * 1000;
+
 export const useNotification = () => {
     const context = useContext(NotificationContext);
     if (!context) {
@@ -31,9 +33,15 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [user]);
 
+    // No sockets in this version: poll so owners see new requests without reloading.
     useEffect(() => {
         fetchNotifications();
-    }, [fetchNotifications]);
+        if (!user) return;
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') fetchNotifications();
+        }, NOTIFICATION_POLL_MS);
+        return () => clearInterval(interval);
+    }, [fetchNotifications, user]);
 
     // Socket listening removed for clean version
     /*
@@ -57,7 +65,7 @@ export const NotificationProvider = ({ children }) => {
 
     const markAllAsRead = async () => {
         try {
-            await api.put('/api/notifications/read-all');
+            await api.put('/api/notifications/mark-all-read');
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
         } catch (error) {

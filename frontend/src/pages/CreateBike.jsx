@@ -13,6 +13,14 @@ import { isOsmProvider } from '../config/mapProvider';
 const ActiveLocationSearchInput = isOsmProvider() ? OSMLocationSearchInput : LocationSearchInput;
 const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
 
+const REQUIRED_IMAGES = ['frontView', 'backView', 'sideView', 'meterPhoto'];
+const IMAGE_LABELS = {
+  frontView: 'Front View',
+  backView: 'Back View',
+  sideView: 'Side View',
+  meterPhoto: 'Meter / Odometer'
+};
+
 const CreateBike = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -42,6 +50,10 @@ const CreateBike = () => {
     scratches: null
   });
 
+
+  // Bike papers: RC is required, insurance and PUC are optional (with expiry dates)
+  const [docs, setDocs] = useState({ rc: null, insurance: null, puc: null });
+  const [docExpiry, setDocExpiry] = useState({ insurance: '', puc: '' });
 
 const [uploading, setUploading] = useState({});
   const [loading, setLoading] = useState(false);
@@ -90,6 +102,19 @@ const [uploading, setUploading] = useState({});
       // 1. Validate that location has coordinates
       if (!formData.handoverLocation?.coordinates?.lat || !formData.handoverLocation?.coordinates?.lng) {
         toast.error('Please select a location from the suggestions or click 🎯 to verify coordinates before creating the listing.');
+        setLoading(false);
+        return;
+      }
+
+      // Check required files up front; otherwise the listing is created and then the upload fails
+      const missingImages = REQUIRED_IMAGES.filter(key => !images[key]);
+      if (missingImages.length > 0) {
+        toast.error(`Please upload: ${missingImages.map(key => IMAGE_LABELS[key]).join(', ')}`);
+        setLoading(false);
+        return;
+      }
+      if (!docs.rc) {
+        toast.error('Please upload the RC (registration certificate)');
         setLoading(false);
         return;
       }
@@ -144,11 +169,28 @@ const [uploading, setUploading] = useState({});
         await api.post(`/api/bikes/${bikeId}/images`, imageFormData);
       }
 
+      // 3. Upload bike documents (RC, Insurance, PUC)
+      const docFormData = new FormData();
+      const documentTypes = [];
+      ['rc', 'insurance', 'puc'].forEach(type => {
+        if (docs[type]) {
+          docFormData.append('documents', docs[type]);
+          documentTypes.push(type);
+        }
+      });
+      docFormData.append('documentTypes', JSON.stringify(documentTypes));
+      if (docExpiry.insurance) docFormData.append('insuranceExpiry', docExpiry.insurance);
+      if (docExpiry.puc) docFormData.append('pucExpiry', docExpiry.puc);
+
+      if (documentTypes.length > 0) {
+        await api.post(`/api/bikes/${bikeId}/documents`, docFormData);
+      }
+
       toast.success('Bike listing created successfully!');
       navigate('/dashboard');
     } catch (error) {
       console.error('Submission Error:', error);
-      toast.error(error.response?.data?.message || 'Failed to create bike listing. Please try uploading images again.');
+      toast.error(error.response?.data?.message || 'Failed to create bike listing. Please try uploading images and documents again.');
     } finally {
       setLoading(false);
     }
@@ -352,13 +394,49 @@ const [uploading, setUploading] = useState({});
   </div>
 </div>
 
+          <div className="border-t border-green-600 pt-6">
+            <h3 className="text-lg font-semibold mb-4 text-black">Upload Bike Documents</h3>
+            <p className="text-sm text-green-700 mb-4">
+              RC is required. Insurance and PUC are optional, but customers see whether the bike is insured.
+            </p>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                { type: 'rc', label: 'RC (Registration Certificate) *' },
+                { type: 'insurance', label: 'Insurance (Optional)' },
+                { type: 'puc', label: 'PUC (Optional)' }
+              ].map(({ type, label }) => (
+                <div key={type}>
+                  <label className="block text-sm font-medium mb-2 text-black">{label}</label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setDocs(prev => ({ ...prev, [type]: e.target.files[0] || null }))}
+                    className="input-field"
+                  />
+                  {type !== 'rc' && docs[type] && (
+                    <div className="mt-2">
+                      <label className="block text-xs text-neutral-600 mb-1">Expiry date</label>
+                      <input
+                        type="date"
+                        value={docExpiry[type]}
+                        onChange={(e) => setDocExpiry(prev => ({ ...prev, [type]: e.target.value }))}
+                        className="input-field"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
 
           <button
             type="submit"
             disabled={loading}
             className="w-full btn-primary disabled:opacity-50"
           >
-            {loading ? 'Processing...' : (createdBikeId ? 'Retry Upload Images' : 'Create Listing')}
+            {loading ? 'Processing...' : (createdBikeId ? 'Retry Upload' : 'Create Listing')}
           </button>
         </form>
       </div>

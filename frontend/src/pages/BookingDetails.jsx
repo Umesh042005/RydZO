@@ -361,7 +361,6 @@ const BookingDetails = () => {
             <p><span className="font-semibold">Duration:</span> {booking.duration?.hours} hours</p>
             <p><span className="font-semibold">Total Amount:</span> ₹{booking.totalAmount}</p>
             <p><span className="font-semibold">Security Deposit:</span> ₹{booking.securityDeposit}</p>
-            <p><span className="font-semibold">Advance Payment:</span> ₹{booking.advancePayment?.requiredAmount || 0} ({booking.advancePayment?.status || 'pending'})</p>
             <p><span className="font-semibold">Request Sent to Owner:</span> {booking.isSentToOwner ? 'Yes' : 'No'}</p>
             <p><span className="font-semibold">Owner Decision:</span> {booking.ownerDecision?.status || 'pending'}</p>
             <p><span className="font-semibold">Security Deposit Status:</span> {booking.securityDepositStatus || 'pending'}</p>

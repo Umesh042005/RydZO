@@ -27,6 +27,9 @@ const ADMIN_STATUS_TRANSITIONS = {
   cancelled: []
 };
 
+// Allows for clock skew and the time a user spends on the booking form.
+const BOOKING_START_GRACE_MS = 5 * 60 * 1000;
+
 function overlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
@@ -100,6 +103,9 @@ exports.createBooking = async (req, res) => {
     }
     if (end <= start) {
       return res.status(400).json({ message: 'End time must be after start time' });
+    }
+    if (start.getTime() < Date.now() - BOOKING_START_GRACE_MS) {
+      return res.status(400).json({ message: 'Start time cannot be in the past' });
     }
     const durationMs = end - start;
     const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
@@ -207,7 +213,7 @@ exports.createBooking = async (req, res) => {
     await agreement.save();
 
     res.status(201).json({
-      message: 'Booking created successfully. Please accept the digital agreement and pay advance to send request to owner.',
+      message: 'Booking created successfully. Please accept the digital agreement to send the request to the owner.',
       booking,
       agreement
     });
@@ -597,7 +603,8 @@ exports.ownerRespondToBooking = async (req, res) => {
         note: note || booking.ownerDecision?.note,
         decidedAt: new Date()
       };
-      await Bike.findByIdAndUpdate(booking.bike, { isAvailable: true });
+      // A pending request never made the bike unavailable, so there is nothing to release.
+      // (Setting isAvailable here used to re-list bikes the owner had hidden or that were mid-ride.)
     }
 
     booking.updatedAt = new Date();
@@ -739,6 +746,10 @@ exports.endRental = async (req, res) => {
     if (booking.status === 'completed') {
       return res.status(400).json({ message: 'Booking is already completed' });
     }
+    // Only a ride that actually started can be ended (pending/confirmed/cancelled cannot jump to completed)
+    if (booking.status !== 'ongoing') {
+      return res.status(400).json({ message: 'Only an ongoing ride can be ended' });
+    }
 
     booking.status = 'completed';
     booking.isTrackingActive = false;
@@ -825,8 +836,8 @@ exports.cancelBooking = async (req, res) => {
     booking.updatedAt = new Date();
     await booking.save();
 
-    // Bug 3: Release bike to available upon booking cancellation
-    await Bike.findByIdAndUpdate(booking.bike, { isAvailable: true });
+    // Pending/confirmed bookings never mark the bike unavailable (only a started ride does),
+    // so cancelling must not touch isAvailable; doing so re-listed hidden or in-use bikes.
 
     res.json({ message: 'Booking cancelled successfully', booking });
   } catch (error) {
@@ -853,8 +864,10 @@ exports.updateBooking = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    if (booking.status === 'ongoing' || booking.status === 'completed') {
-      return res.status(400).json({ message: 'Cannot edit an ongoing or completed booking' });
+    // Once the owner has the request, its dates and price are what they are deciding on
+    // (and after acceptance, what both sides agreed to). Editing is only for drafts.
+    if (booking.status !== 'pending' || booking.isSentToOwner) {
+      return res.status(400).json({ message: 'Only bookings not yet sent to the owner can be edited' });
     }
 
     const { startDate, endDate, startTime, endTime, startTimeIso, endTimeIso, handoverLocation } = req.body;
