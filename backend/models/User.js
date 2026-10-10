@@ -134,5 +134,20 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Never serialize secrets. Government ID numbers are only included when a caller
+// opts in per document (admin KYC review) via user.$locals.includeKyc = true.
+userSchema.set('toJSON', {
+  transform(doc, ret) {
+    delete ret.password;
+    delete ret.otp;
+    delete ret.otpExpiry;
+    if (!doc.$locals?.includeKyc) {
+      delete ret.aadhaarNumber;
+      delete ret.panNumber;
+    }
+    return ret;
+  }
+});
+
 module.exports = mongoose.model('User', userSchema);
 

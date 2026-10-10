@@ -20,11 +20,12 @@ const {
   getAllBookings,
   adminLogin
 } = require('../controllers/adminController');
+const { strictLimiter } = require('../middleware/rateLimit');
 
 // @route   POST /api/admin/login
 // @desc    Admin login directly
 // @access  Public
-router.post('/login', adminLogin);
+router.post('/login', strictLimiter, adminLogin);
 
 // All routes below require admin authentication and role
 router.use(auth);

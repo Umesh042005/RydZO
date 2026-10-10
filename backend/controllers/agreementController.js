@@ -5,6 +5,13 @@ const User = require('../models/User');
 const agreementTemplate = require('../utils/agreementTemplate');
 const { generateOTP, sendOTPviaSMS, sendOTPviaEmail } = require('../utils/otp');
 
+// Only what the agreement template needs; never load full user documents here.
+const PARTY_FIELDS = 'name phone';
+const BIKE_FIELDS = 'brand model bikeNumber documents.insurance';
+
+const AGREEMENT_OTP_TTL_MS = 10 * 60 * 1000;
+const AGREEMENT_OTP_MAX_ATTEMPTS = 5;
+
 // @desc    Create digital agreement
 // @route   POST /api/agreements
 // @access  Private
@@ -13,16 +20,26 @@ exports.createAgreement = async (req, res) => {
     const { bookingId } = req.body;
 
     const booking = await Booking.findById(bookingId)
-      .populate('customer')
-      .populate('owner')
-      .populate('bike');
+      .populate('customer', PARTY_FIELDS)
+      .populate('owner', PARTY_FIELDS)
+      .populate('bike', BIKE_FIELDS);
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // Check access
+    if (req.user.role !== 'admin' &&
+        booking.customer._id.toString() !== req.user._id.toString() &&
+        booking.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     // Check if agreement already exists
     let agreement = await Agreement.findOne({ booking: bookingId });
+    if (agreement && agreement.accepted) {
+      return res.json({ message: 'Agreement already exists', agreement });
+    }
     if (agreement) {
       const refreshedText = agreementTemplate(
         {
@@ -121,24 +138,25 @@ exports.getAgreement = async (req, res) => {
   try {
     const agreement = await Agreement.findOne({ booking: req.params.bookingId })
       .populate('booking')
-      .populate('customer')
-      .populate('owner')
-      .populate('bike');
+      .populate('customer', PARTY_FIELDS)
+      .populate('owner', PARTY_FIELDS)
+      .populate('bike', BIKE_FIELDS);
 
     if (!agreement) {
       return res.status(404).json({ message: 'Agreement not found' });
     }
 
     // Check access
-    const booking = await Booking.findById(req.params.bookingId);
-    if (req.user.role !== 'admin' && 
-        booking.customer.toString() !== req.user._id.toString() &&
-        booking.owner.toString() !== req.user._id.toString()) {
+    const userId = req.user._id.toString();
+    if (req.user.role !== 'admin' &&
+        agreement.customer?._id.toString() !== userId &&
+        agreement.owner?._id.toString() !== userId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Ensure agreementText reflects current booking time & IST formatting using the single source of truth
-    if (agreement.booking && agreement.customer && agreement.bike && agreement.owner) {
+    // Until accepted, keep agreementText in sync with the booking (single source of truth).
+    // Once accepted it is frozen as the record of what was signed.
+    if (!agreement.accepted && agreement.booking && agreement.customer && agreement.bike && agreement.owner) {
       const refreshedText = agreementTemplate(
         {
           customerName: agreement.customer.name,
@@ -205,8 +223,10 @@ exports.acceptAgreement = async (req, res) => {
     if (useOTP) {
       const otp = generateOTP();
       agreement.otp = otp;
+      agreement.otpExpiry = new Date(Date.now() + AGREEMENT_OTP_TTL_MS);
+      agreement.otpAttempts = 0;
       agreement.acceptanceMethod = 'otp';
-      
+
       // Send OTP
       const customer = await User.findById(agreement.customer);
       if (customer.email) {
@@ -278,11 +298,26 @@ exports.verifyAgreementOTP = async (req, res) => {
       return res.status(404).json({ message: 'Agreement not found' });
     }
 
+    // Only the customer can consent, and only with an OTP that was actually issued
+    if (agreement.customer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only customer can accept the agreement' });
+    }
+
     if (agreement.accepted) {
       return res.status(400).json({ message: 'Agreement already accepted' });
     }
 
-    if (agreement.otp !== otp) {
+    if (!agreement.otp || !agreement.otpExpiry || new Date() > agreement.otpExpiry) {
+      return res.status(400).json({ message: 'OTP expired or not requested. Please request a new one.' });
+    }
+
+    if (agreement.otpAttempts >= AGREEMENT_OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({ message: 'Too many invalid attempts. Please request a new OTP.' });
+    }
+
+    if (typeof otp !== 'string' || agreement.otp !== otp) {
+      agreement.otpAttempts += 1;
+      await agreement.save();
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
@@ -308,6 +343,7 @@ exports.verifyAgreementOTP = async (req, res) => {
     agreement.userIP = req.ip;
     agreement.userAgent = req.get('user-agent');
     agreement.otp = undefined;
+    agreement.otpExpiry = undefined;
 
     await agreement.save();
 

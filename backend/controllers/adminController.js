@@ -3,11 +3,18 @@ const Bike = require('../models/Bike');
 const Booking = require('../models/Booking');
 const DamageProof = require('../models/DamageProof');
 const jwt = require('jsonwebtoken');
+const { isNonEmptyString, buildIdentityFilter } = require('../utils/validation');
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET || 'rydzo_secret_key', {
     expiresIn: '30d'
   });
+};
+
+// Admin KYC views need government ID numbers, which User.toJSON hides by default.
+const withKyc = (users) => {
+  users.forEach((u) => { u.$locals.includeKyc = true; });
+  return users;
 };
 
 // @desc    Admin login directly
@@ -17,29 +24,26 @@ exports.adminLogin = async (req, res) => {
   try {
     const { phone, email, password } = req.body;
 
-    if ((!phone && !email) || !password) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!identityFilter || !isNonEmptyString(password)) {
       return res.status(400).json({ message: 'Please provide phone/email and password' });
     }
 
-    const user = await User.findOne({
-      $or: [
-        phone ? { phone } : null,
-        email ? { email } : null
-      ].filter(Boolean)
-    });
+    const user = await User.findOne(identityFilter);
 
     if (!user) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    // Check password before role so the response does not reveal which accounts are admins
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
       return res.status(401).json({ message: 'Invalid admin credentials' });
     }
 
     // Role check: must be admin
     if (user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied: Admin credentials required' });
-    }
-
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid admin credentials' });
     }
 
     const token = generateToken(user._id);
@@ -199,8 +203,8 @@ exports.getPendingApprovals = async (req, res) => {
     ]);
 
     res.json({
-      customers: pendingCustomers,
-      owners: pendingOwners,
+      customers: withKyc(pendingCustomers),
+      owners: withKyc(pendingOwners),
       bikes: pendingBikes
     });
   } catch (error) {
@@ -433,7 +437,7 @@ exports.getAllCustomers = async (req, res) => {
       .select('-password -otp')
       .sort({ createdAt: -1 });
 
-    res.json(customers);
+    res.json(withKyc(customers));
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -449,7 +453,7 @@ exports.getAllOwners = async (req, res) => {
       .select('-password -otp')
       .sort({ createdAt: -1 });
 
-    res.json(owners);
+    res.json(withKyc(owners));
   } catch (error) {
     console.error('Get owners error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

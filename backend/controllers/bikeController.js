@@ -2,6 +2,16 @@ const Bike = require('../models/Bike');
 const User = require('../models/User');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
+const OWNER_EDITABLE_FIELDS = [
+  'description',
+  'condition',
+  'mileage',
+  'pricing',
+  'isAvailable',
+  'availabilitySchedule',
+  'handoverLocation'
+];
+
 // @desc    Create new bike listing
 // @route   POST /api/bikes
 // @access  Private (Owner)
@@ -225,13 +235,34 @@ exports.updateBike = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Not your bike.' });
     }
 
-    const updates = req.body;
-    Object.keys(updates).forEach(key => {
-      if (key === 'pricing') {
-        bike.pricing = { ...bike.pricing, ...updates.pricing };
-      } else if (key !== '_id' && key !== 'owner' && key !== 'approvalStatus') {
-        bike[key] = updates[key];
+    // Only operational fields are owner-editable. Identity, photos, documents and
+    // moderation fields (bikeNumber, images, documents, status, ...) were reviewed by
+    // an admin at approval time and must not change behind that review.
+    const updates = req.body || {};
+    const unknown = Object.keys(updates).filter(key => !OWNER_EDITABLE_FIELDS.includes(key));
+    if (unknown.length > 0) {
+      return res.status(400).json({ message: `These fields cannot be updated: ${unknown.join(', ')}` });
+    }
+
+    if (updates.pricing !== undefined) {
+      const { hourly, daily } = updates.pricing || {};
+      const isValidPrice = (v) => v === undefined || (typeof v === 'number' && Number.isFinite(v) && v > 0);
+      if (!isValidPrice(hourly) || !isValidPrice(daily)) {
+        return res.status(400).json({ message: 'Prices must be positive numbers' });
       }
+      if (hourly !== undefined) bike.pricing.hourly = hourly;
+      if (daily !== undefined) bike.pricing.daily = daily;
+    }
+
+    if (updates.isAvailable !== undefined) {
+      if (typeof updates.isAvailable !== 'boolean') {
+        return res.status(400).json({ message: 'isAvailable must be true or false' });
+      }
+      bike.isAvailable = updates.isAvailable;
+    }
+
+    ['description', 'condition', 'mileage', 'availabilitySchedule', 'handoverLocation'].forEach(key => {
+      if (updates[key] !== undefined) bike[key] = updates[key];
     });
 
     bike.updatedAt = new Date();

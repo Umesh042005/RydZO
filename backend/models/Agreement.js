@@ -48,6 +48,11 @@ const agreementSchema = new mongoose.Schema({
     default: 'checkbox'
   },
   otp: String,
+  otpExpiry: Date,
+  otpAttempts: {
+    type: Number,
+    default: 0
+  },
   otpVerified: {
     type: Boolean,
     default: false
@@ -70,6 +75,24 @@ const agreementSchema = new mongoose.Schema({
 // Indexes
 agreementSchema.index({ booking: 1 });
 agreementSchema.index({ customer: 1 });
+
+// The accepted text is the legal record of what the customer consented to; it must never change afterwards.
+agreementSchema.pre('save', function (next) {
+  if (!this.isNew && this.accepted && !this.isModified('accepted') && this.isModified('agreementText')) {
+    return next(new Error('Agreement text cannot be changed after acceptance'));
+  }
+  next();
+});
+
+// The OTP is a secret for the customer only; the owner can also read this agreement.
+agreementSchema.set('toJSON', {
+  transform(doc, ret) {
+    delete ret.otp;
+    delete ret.otpExpiry;
+    delete ret.otpAttempts;
+    return ret;
+  }
+});
 
 module.exports = mongoose.model('Agreement', agreementSchema);
 

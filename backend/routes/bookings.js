@@ -76,8 +76,8 @@ router.post('/:id/authorize-deposit', auth, authorizeSecurityDeposit);
 router.post('/:id/security-deposit/collect', auth, collectSecurityDeposit);
 
 // @route   PUT /api/bookings/:id/status
-// @desc    Update booking status
-// @access  Private
+// @desc    Update booking status (admin override; see ADMIN_STATUS_TRANSITIONS)
+// @access  Private (Admin)
 router.put('/:id/status', auth, updateBookingStatus);
 
 // @route   POST /api/bookings/:id/start

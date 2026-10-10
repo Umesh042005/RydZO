@@ -16,6 +16,17 @@ function calculateInsuranceStatus(bike) {
   }
 }
 
+// Status changes an admin may force via PUT /api/bookings/:id/status.
+// Anything not listed (e.g. pending -> completed) must go through the normal flow.
+const ADMIN_STATUS_TRANSITIONS = {
+  pending: ['cancelled'],
+  confirmed: ['cancelled'],
+  ongoing: ['disputed'],
+  completed: ['disputed'],
+  disputed: ['completed', 'cancelled'],
+  cancelled: []
+};
+
 function overlaps(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
@@ -329,6 +340,13 @@ exports.getBookingById = async (req, res) => {
 // @access  Private
 exports.updateBookingStatus = async (req, res) => {
   try {
+    // Customers and owners move bookings only through the dedicated lifecycle
+    // endpoints (submit-request, owner/respond, start, end, cancel), which enforce
+    // their own preconditions. This raw endpoint is an admin override only.
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
     const { status } = req.body;
     const booking = await Booking.findById(req.params.id);
 
@@ -336,11 +354,11 @@ exports.updateBookingStatus = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    // Check access
-    if (req.user.role !== 'admin' &&
-      booking.customer.toString() !== req.user._id.toString() &&
-      booking.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    const allowed = ADMIN_STATUS_TRANSITIONS[booking.status] || [];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        message: `Cannot change booking status from ${booking.status} to ${status}`
+      });
     }
 
     booking.status = status;

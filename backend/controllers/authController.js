@@ -1,6 +1,10 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTPviaSMS, sendOTPviaEmail } = require('../utils/otp');
+const { isNonEmptyString, buildIdentityFilter } = require('../utils/validation');
+
+// Roles a user may pick at self-registration. Admins are created only via create-admin.js.
+const SELF_REGISTER_ROLES = ['customer', 'owner'];
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET || 'rydzo_secret_key', {
@@ -16,14 +20,16 @@ exports.register = async (req, res) => {
     const { name, email, phone, password, role } = req.body;
 
     // Validation
-    if (!name || !phone || !password || !email) {
+    if (![name, phone, password, email].every(isNonEmptyString)) {
       return res.status(400).json({ message: 'Please provide name, phone, email, and password.' });
     }
 
+    if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
     // Check if user exists
-    const existingUser = await User.findOne({
-      $or: [{ phone }, { email: email || '' }]
-    });
+    const existingUser = await User.findOne(buildIdentityFilter(phone, email));
 
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this phone or email' });
@@ -32,8 +38,8 @@ exports.register = async (req, res) => {
     // Create user (Auto-verified for simple flow)
     const user = new User({
       name,
-      email: email || undefined,
-      phone,
+      email,
+      phone: phone.trim(),
       password,
       role: role || 'customer',
       isVerified: true, // Auto-verify
@@ -71,14 +77,13 @@ exports.login = async (req, res) => {
   try {
     const { phone, email, password } = req.body;
 
-    if ((!phone && !email) || !password) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!identityFilter || !isNonEmptyString(password)) {
       return res.status(400).json({ message: 'Please provide phone/email and password' });
     }
 
     // Find user
-    const user = await User.findOne({
-      $or: [{ phone }, { email }]
-    });
+    const user = await User.findOne(identityFilter);
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -124,13 +129,12 @@ exports.sendOTP = async (req, res) => {
   try {
     const { phone, email } = req.body;
 
-    if (!phone && !email) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!identityFilter) {
       return res.status(400).json({ message: 'Please provide phone or email' });
     }
 
-    const user = await User.findOne({
-      $or: [{ phone }, { email: email || '' }]
-    });
+    const user = await User.findOne(identityFilter);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -173,25 +177,24 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone, email, otp } = req.body;
 
-    if (!otp || (!phone && !email)) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!isNonEmptyString(otp) || !identityFilter) {
       return res.status(400).json({ message: 'Please provide OTP and phone/email' });
     }
 
-    const user = await User.findOne({
-      $or: [{ phone }, { email: email || '' }]
-    });
+    const user = await User.findOne(identityFilter);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Check OTP
-    if (user.otp !== otp) {
+    if (!user.otp || user.otp !== otp) {
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
     // Check expiry
-    if (new Date() > user.otpExpiry) {
+    if (!user.otpExpiry || new Date() > user.otpExpiry) {
       return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
     }
 
@@ -229,13 +232,12 @@ exports.resendOTP = async (req, res) => {
   try {
     const { phone, email } = req.body;
 
-    if (!phone && !email) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!identityFilter) {
       return res.status(400).json({ message: 'Please provide phone or email' });
     }
 
-    const user = await User.findOne({
-      $or: [{ phone }, { email: email || '' }]
-    });
+    const user = await User.findOne(identityFilter);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -274,16 +276,12 @@ exports.resendOTP = async (req, res) => {
 exports.checkRole = async (req, res) => {
   try {
     const { phone, email } = req.body;
-    if (!phone && !email) {
+    const identityFilter = buildIdentityFilter(phone, email);
+    if (!identityFilter) {
       return res.status(400).json({ message: 'Please provide phone or email' });
     }
 
-    const user = await User.findOne({
-      $or: [
-        phone ? { phone } : null,
-        email ? { email } : null
-      ].filter(Boolean)
-    }).select('role');
+    const user = await User.findOne(identityFilter).select('role');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found', role: null });
