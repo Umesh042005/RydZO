@@ -23,7 +23,8 @@ const OSMLocationSearchInput = ({
   placeholder = 'Type address or locality (e.g. Sonagiri Bhopal)...',
   required = false,
   className = '',
-  disabled = false
+  disabled = false,
+  coordinates = null
 }) => {
   const [query, setQuery] = useState(value || '');
   const [predictions, setPredictions] = useState([]);
@@ -40,6 +41,15 @@ const OSMLocationSearchInput = ({
   useEffect(() => {
     setQuery(value || '');
   }, [value]);
+
+  // Sync the confirmed pin when the parent moves it (e.g. the user drags the map marker)
+  const coordLat = coordinates?.lat;
+  const coordLng = coordinates?.lng;
+  useEffect(() => {
+    if (coordLat != null && coordLng != null && !isNaN(coordLat) && !isNaN(coordLng)) {
+      setSelectedCoordinates({ lat: Number(coordLat), lng: Number(coordLng) });
+    }
+  }, [coordLat, coordLng]);
 
   // Close dropdown on outside click
   useEffect(() => {

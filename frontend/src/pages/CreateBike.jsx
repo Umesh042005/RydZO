@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
@@ -9,6 +9,7 @@ import GoogleMapView from '../components/maps/GoogleMapView';
 import OSMLocationSearchInput from '../components/maps/osm/OSMLocationSearchInput';
 import OSMMapView from '../components/maps/osm/OSMMapView';
 import { isOsmProvider } from '../config/mapProvider';
+import { reverseGeocode } from '../services/osm/osmGeocodingService';
 
 const ActiveLocationSearchInput = isOsmProvider() ? OSMLocationSearchInput : LocationSearchInput;
 const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
@@ -91,6 +92,27 @@ const [uploading, setUploading] = useState({});
       }
     }));
   };
+
+  // Owner fine-tunes the pin on the map: save the exact spot, then refresh the address text
+  const handlePinMove = useCallback(async ({ lat, lng }) => {
+    setFormData(prev => ({
+      ...prev,
+      handoverLocation: { ...prev.handoverLocation, coordinates: { lat, lng } }
+    }));
+    try {
+      const { address } = await reverseGeocode(lat, lng);
+      if (address) {
+        setFormData(prev => {
+          const c = prev.handoverLocation.coordinates;
+          // Ignore a slow response if the pin has moved again since
+          if (c?.lat !== lat || c?.lng !== lng) return prev;
+          return { ...prev, handoverLocation: { ...prev.handoverLocation, address } };
+        });
+      }
+    } catch {
+      // Keep the previous address text; the coordinates are what matter for the map
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -362,6 +384,7 @@ const [uploading, setUploading] = useState({});
               value={formData.handoverLocation.address}
               onLocationSelect={handleLocationSelect}
               placeholder="Search pickup location or address..."
+              coordinates={formData.handoverLocation.coordinates}
               required
             />
             {formData.handoverLocation.coordinates?.lat != null &&
@@ -370,7 +393,8 @@ const [uploading, setUploading] = useState({});
                 <ActiveMapView
                   coordinates={formData.handoverLocation.coordinates}
                   address={formData.handoverLocation.address}
-                  height="200px"
+                  height="280px"
+                  onPositionChange={isOsmProvider() ? handlePinMove : undefined}
                 />
               </div>
             )}

@@ -13,7 +13,7 @@ const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
  * @param {string} address - Human-readable address
  * @returns {Promise<{address: string, coordinates: {lat: number, lng: number}}>}
  */
-export async function geocodeAddress(address) {
+export async function geocodeAddress(address, { settlementOnly = false } = {}) {
   if (!address || address.trim().length === 0) {
     throw new Error('Address is required for geocoding');
   }
@@ -25,6 +25,8 @@ export async function geocodeAddress(address) {
     limit: '1',
     countrycodes: 'in'
   });
+  // Restrict to cities/towns/villages so a lone word cannot match a random street or shop
+  if (settlementOnly) params.set('featureType', 'settlement');
 
   const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params.toString()}`, {
     headers: {
@@ -54,6 +56,81 @@ export async function geocodeAddress(address) {
     address: item.display_name,
     coordinates: { lat, lng }
   };
+}
+
+// Address -> coordinates results, kept per address so each page view does not re-query
+// Nominatim (its usage policy allows about 1 request per second).
+const geocodeCache = new Map();
+const GEOCODE_CACHE_PREFIX = 'rydzo:geocode:';
+
+// Leading words of Indian addresses that are not place names
+const GENERIC_ADDRESS_WORDS = new Set([
+  'near', 'opp', 'opposite', 'behind', 'beside', 'front', 'infront', 'next', 'current', 'location',
+  'house', 'flat', 'plot', 'road', 'street', 'lane', 'gali', 'sector', 'ward', 'block',
+  'main', 'new', 'old', 'the', 'shop', 'building', 'colony', 'nagar'
+]);
+
+/**
+ * Like geocodeAddress, but cached in memory and sessionStorage.
+ * Resolves to null instead of throwing when the address cannot be found.
+ *
+ * @param {string} address
+ * @returns {Promise<{lat: number, lng: number} | null>}
+ */
+export async function geocodeAddressCached(address) {
+  const key = (address || '').trim().toLowerCase();
+  if (!key) return null;
+
+  if (geocodeCache.has(key)) return geocodeCache.get(key);
+
+  try {
+    const stored = sessionStorage.getItem(GEOCODE_CACHE_PREFIX + key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      geocodeCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // sessionStorage unavailable (private mode etc.) - fall through to the network
+  }
+
+  // Free-typed addresses often fail as a whole (e.g. "Balaghat Madhyapradesh"), so fall back
+  // to the part before the first comma, then to the first word (usually the town). The
+  // shorter fallbacks only accept a city/town/village, so a partial match cannot land
+  // the pin somewhere unrelated.
+  const full = address.trim();
+  const candidates = [{ q: full, settlementOnly: false }];
+  const firstPart = full.split(',')[0].trim();
+  if (firstPart && firstPart !== full) candidates.push({ q: firstPart, settlementOnly: true });
+  const firstWord = firstPart.split(/\s+/)[0];
+  if (firstWord && firstWord !== firstPart && firstWord.length >= 3 &&
+      !GENERIC_ADDRESS_WORDS.has(firstWord.toLowerCase())) {
+    candidates.push({ q: firstWord, settlementOnly: true });
+  }
+
+  const pending = (async () => {
+    for (const { q, settlementOnly } of candidates) {
+      try {
+        const res = await geocodeAddress(q, { settlementOnly });
+        return res.coordinates;
+      } catch {
+        // try the next, shorter candidate
+      }
+    }
+    return null;
+  })();
+  geocodeCache.set(key, pending);
+
+  const coords = await pending;
+  geocodeCache.set(key, coords);
+  if (coords) {
+    try {
+      sessionStorage.setItem(GEOCODE_CACHE_PREFIX + key, JSON.stringify(coords));
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return coords;
 }
 
 /**
@@ -102,6 +179,7 @@ export async function reverseGeocode(lat, lng) {
 
 const osmGeocodingService = {
   geocodeAddress,
+  geocodeAddressCached,
   reverseGeocode
 };
 

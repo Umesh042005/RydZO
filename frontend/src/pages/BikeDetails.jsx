@@ -53,18 +53,20 @@ const BikeDetails = () => {
 
   const handleGetDirections = async () => {
     const coords = bike?.handoverLocation?.coordinates;
-    if (!coords || coords.lat == null || coords.lng == null) {
-      toast.error('Location coordinates not available for directions');
+    const hasCoords = coords && coords.lat != null && coords.lng != null;
+    const address = bike?.handoverLocation?.address?.trim();
+    // Older listings only have an address; the routing service can geocode it
+    if (!hasCoords && !address) {
+      toast.error('Location not available for directions');
       return;
     }
 
     setCalculatingRoute(true);
     setRouteError(null);
     try {
-      const result = await calculateRouteFromCurrentLocation({
-        lat: Number(coords.lat),
-        lng: Number(coords.lng)
-      });
+      const result = await calculateRouteFromCurrentLocation(
+        hasCoords ? { lat: Number(coords.lat), lng: Number(coords.lng) } : address
+      );
       if (result.available) {
         setRouteInfo(result);
         toast.success(`Distance: ${result.distance.text} • ETA: ${result.duration.text}`);
@@ -276,8 +278,9 @@ const BikeDetails = () => {
                   <FiMapPin className="text-primary-700" />
                   Pickup / Handover Location
                 </h3>
-                {bike.handoverLocation?.coordinates?.lat != null &&
-                 bike.handoverLocation?.coordinates?.lng != null && (
+                {((bike.handoverLocation?.coordinates?.lat != null &&
+                  bike.handoverLocation?.coordinates?.lng != null) ||
+                  bike.handoverLocation?.address?.trim()) && (
                   <button
                     type="button"
                     onClick={handleGetDirections}

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import React, { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import { setupLeaflet } from '../../../services/osm/osmLoader';
+import { geocodeAddressCached } from '../../../services/osm/osmGeocodingService';
 import { FiMapPin, FiExternalLink, FiNavigation, FiAlertCircle } from 'react-icons/fi';
 import 'leaflet/dist/leaflet.css';
 
@@ -24,6 +25,26 @@ function MapViewController({ center, zoom, routePoints }) {
     }
   }, [map, center, zoom, routePoints]);
 
+  // Leaflet measures its container once at mount. When the card around it is still
+  // laying out, part of the map stays grey until it is told to re-measure.
+  useEffect(() => {
+    if (!map) return;
+    const t = setTimeout(() => map.invalidateSize(), 200);
+    return () => clearTimeout(t);
+  }, [map]);
+
+  return null;
+}
+
+/**
+ * Lets the user move the pin by clicking/tapping the map (only when editable).
+ */
+function MapClickHandler({ onPick }) {
+  useMapEvents({
+    click(e) {
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    }
+  });
   return null;
 }
 
@@ -42,6 +63,8 @@ function MapViewController({ center, zoom, routePoints }) {
  * @param {string} [props.className=""] - Additional container CSS classes
  * @param {Object} [props.directionsResult] - Optional route result to render polyline
  * @param {boolean} [props.showExternalLink=true] - Whether to show "Open in OpenStreetMap" link
+ * @param {(coords: {lat: number, lng: number}) => void} [props.onPositionChange] - When set, the pin
+ *   can be dragged or placed by clicking the map, and this is called with the new position
  */
 const OSMMapView = ({
   coordinates,
@@ -52,7 +75,8 @@ const OSMMapView = ({
   height = '280px',
   className = '',
   directionsResult = null,
-  showExternalLink = true
+  showExternalLink = true,
+  onPositionChange = null
 }) => {
   // Ensure default marker icons are configured
   useEffect(() => {
@@ -62,11 +86,46 @@ const OSMMapView = ({
   // Extract coordinates from object or props
   const lat = coordinates?.lat != null ? Number(coordinates.lat) : (propLat != null ? Number(propLat) : null);
   const lng = coordinates?.lng != null ? Number(coordinates.lng) : (propLng != null ? Number(propLng) : null);
-  const hasValidCoordinates = lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng);
+  const hasStoredCoordinates = lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng);
+
+  // Listings saved with only an address (e.g. "Bhopal") have no coordinates. Look the
+  // address up so the map still shows the area, and label it as approximate.
+  const [approxCoords, setApproxCoords] = useState(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  useEffect(() => {
+    if (hasStoredCoordinates || !address) {
+      setApproxCoords(null);
+      setIsGeocoding(false);
+      return;
+    }
+    let cancelled = false;
+    setIsGeocoding(true);
+    geocodeAddressCached(address).then((coords) => {
+      if (cancelled) return;
+      setApproxCoords(coords);
+      setIsGeocoding(false);
+    });
+    return () => { cancelled = true; };
+  }, [hasStoredCoordinates, address]);
+
+  const isApproximate = !hasStoredCoordinates && approxCoords != null;
+  const hasValidCoordinates = hasStoredCoordinates || isApproximate;
+  const displayLat = hasStoredCoordinates ? lat : approxCoords?.lat;
+  const displayLng = hasStoredCoordinates ? lng : approxCoords?.lng;
+  // An address-only location is usually a city or locality, so show the wider area
+  const effectiveZoom = isApproximate ? Math.min(zoom, 13) : zoom;
 
   const center = useMemo(() => {
-    return hasValidCoordinates ? [lat, lng] : [23.2599, 77.4126]; // Default fallback center (Bhopal)
-  }, [hasValidCoordinates, lat, lng]);
+    return hasValidCoordinates ? [displayLat, displayLng] : [23.2599, 77.4126]; // Default fallback center (Bhopal)
+  }, [hasValidCoordinates, displayLat, displayLng]);
+
+  const isEditable = typeof onPositionChange === 'function';
+  const markerHandlers = useMemo(() => ({
+    dragend(e) {
+      const pos = e.target.getLatLng();
+      if (onPositionChange) onPositionChange({ lat: pos.lat, lng: pos.lng });
+    }
+  }), [onPositionChange]);
 
   // Extract route coordinates if directionsResult is provided
   const routePoints = useMemo(() => {
@@ -81,8 +140,8 @@ const OSMMapView = ({
   }, [directionsResult]);
 
   // Construct external map URL
-  const osmUrl = hasValidCoordinates
-    ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`
+  const osmUrl = hasStoredCoordinates
+    ?`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`
     : address
     ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(address)}`
     : null;
@@ -123,7 +182,7 @@ const OSMMapView = ({
             </p>
             <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
               <FiAlertCircle className="text-xs" />
-              Map location unavailable (coordinates pending)
+              {isGeocoding ? 'Finding this address on the map...' : 'Map location unavailable (coordinates pending)'}
             </span>
           </div>
         </div>
@@ -150,7 +209,7 @@ const OSMMapView = ({
     <div className={`relative rounded-xl overflow-hidden border border-neutral-200 shadow-sm ${className}`} style={{ height }}>
       <MapContainer
         center={center}
-        zoom={zoom}
+        zoom={effectiveZoom}
         scrollWheelZoom={false}
         style={{ width: '100%', height: '100%', zIndex: 1 }}
       >
@@ -159,9 +218,11 @@ const OSMMapView = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapViewController center={center} zoom={zoom} routePoints={routePoints} />
+        <MapViewController center={center} zoom={effectiveZoom} routePoints={routePoints} />
 
-        <Marker position={center}>
+        {isEditable && <MapClickHandler onPick={onPositionChange} />}
+
+        <Marker position={center} draggable={isEditable} eventHandlers={markerHandlers}>
           {address && (
             <Popup>
               <div className="text-xs font-medium text-neutral-800">
@@ -178,6 +239,19 @@ const OSMMapView = ({
           />
         )}
       </MapContainer>
+
+      {isApproximate && (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md shadow-sm">
+          <FiAlertCircle className="text-xs" />
+          Approximate area from address
+        </span>
+      )}
+
+      {isEditable && (
+        <span className="absolute top-2 left-2 z-20 text-xs text-neutral-800 bg-white border border-neutral-200 px-2 py-1 rounded-md shadow-sm">
+          Drag the pin or tap the map to set the exact spot
+        </span>
+      )}
 
       {showExternalLink && osmUrl && (
         <a
