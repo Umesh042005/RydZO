@@ -6,7 +6,7 @@ const Notification = require('../models/Notification');
 const agreementTemplate = require('../utils/agreementTemplate');
 const { BOOKING_REQUIREMENTS, missingBookingDocs, isCustomerApproved } = require('../utils/bookingEligibility');
 
-const CUSTOMER_UNDER_REVIEW = "The customer's documents are still under RydZo review. You can continue once an admin approves them.";
+const CUSTOMER_UNDER_REVIEW = "The customer's documents are still under RydZO review. You can continue once an admin approves them.";
 
 function calculateInsuranceStatus(bike) {
   try {

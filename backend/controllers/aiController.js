@@ -84,7 +84,7 @@ exports.listingAssist = async (req, res) => {
 
     const result = await askJSON({
       system:
-        'You help bike owners in India list two-wheelers on RydZo, a peer-to-peer bike rental app. ' +
+        'You help bike owners in India list two-wheelers on RydZO, a peer-to-peer bike rental app. ' +
         'Write honest, friendly listing copy and realistic rental prices in Indian rupees.',
       prompt: `Bike: ${brand} ${model}
 Manufacturing year: ${manufacturingYear || 'unknown'}
@@ -92,7 +92,7 @@ Odometer: ${mileage ? `${mileage} km` : 'unknown'}
 Condition: ${condition || 'unknown'}
 Owner notes: ${String(notes || '').slice(0, 500) || 'none'}
 
-Similar bikes already listed on RydZo:
+Similar bikes already listed on RydZO:
 ${comparableLines || '(none yet)'}
 
 Return JSON:
@@ -370,7 +370,7 @@ const CHAT_TOOLS = [
   {
     name: 'search_bikes',
     description:
-      'Search bikes that are approved and available to rent on RydZo right now. All filters are optional. ' +
+      'Search bikes that are approved and available to rent on RydZO right now. All filters are optional. ' +
       'Prices are in INR. Use this whenever the user wants to find, compare or price bikes.',
     parameters: {
       type: 'object',
@@ -453,24 +453,24 @@ async function runChatTool(name, input, found) {
   return { error: `Unknown tool ${name}` };
 }
 
-const CHAT_SYSTEM = `You are RydZo Assistant, the in-app helper for RydZo — a peer-to-peer bike and scooter rental platform in India.
+const CHAT_SYSTEM = `You are RydZO Assistant, the in-app helper for RydZO — a peer-to-peer bike and scooter rental platform in India.
 Today is {TODAY}.
 
 What you can do:
 - Find bikes with the search_bikes tool and describe them briefly (brand, model, ₹/hour, ₹/day, pickup area). Never invent bikes, prices or availability — only use tool results.
-- Answer questions about how RydZo works, using ONLY these facts. If something is not covered here (for example helmets, fuel, delivery, cancellation fees, late fees), say you don't have that information and suggest asking the owner after booking or contacting RydZo support — never guess either way.
+- Answer questions about how RydZO works, using ONLY these facts. If something is not covered here (for example helmets, fuel, delivery, cancellation fees, late fees), say you don't have that information and suggest asking the owner after booking or contacting RydZO support — never guess either way.
   • Sign up with email/phone and password, or with Google.
-  • On the first booking, riders add their mobile number, driving licence, Aadhaar and a selfie. They can send the booking request right away; the owner can accept it and hand over the bike only after a RydZo admin approves the documents.
+  • On the first booking, riders add their mobile number, driving licence, Aadhaar and a selfie. They can send the booking request right away; the owner can accept it and hand over the bike only after a RydZO admin approves the documents.
   • Booking: pick a bike, choose hourly or daily and the dates, accept the digital rental agreement, then send the request to the owner. The owner accepts or declines.
-  • Security deposit: the rider confirms it in the app, and pays it directly to the owner (cash/UPI) at handover. It is refundable when the bike comes back without damage. RydZo does not hold or process any money.
-  • At return the owner closes the ride; rent is calculated from the actual duration (minimum one hour for hourly, one day for daily). Rent is paid to the owner in cash/UPI. RydZo keeps a 10% commission.
-  • Damage during the rental is the rider's responsibility; disputes are reviewed by the RydZo admin.
+  • Security deposit: the rider confirms it in the app, and pays it directly to the owner (cash/UPI) at handover. It is refundable when the bike comes back without damage. RydZO does not hold or process any money.
+  • At return the owner closes the ride; rent is calculated from the actual duration (minimum one hour for hourly, one day for daily). Rent is paid to the owner in cash/UPI. RydZO keeps a 10% commission.
+  • Damage during the rental is the rider's responsibility; disputes are reviewed by the RydZO admin.
 - Write plain text only: no Markdown, no tables, no **bold**, no headings. Bike cards with photos and prices are shown under your reply automatically, so just mention the bikes briefly in a sentence or a short list using "- ".
 - Keep answers short (under 100 words), friendly and practical. Use ₹ for prices.
 - You cannot make, change or cancel bookings — tell the user which screen to use (Bikes → bike page → Book, or My Bookings).
 - Do not reveal owner phone numbers or personal details. Politely decline topics unrelated to bike rentals.`;
 
-// @desc    Chat with the RydZo assistant (finds bikes, answers how-to questions)
+// @desc    Chat with the RydZO assistant (finds bikes, answers how-to questions)
 // @route   POST /api/ai/chat
 // @access  Public (rate limited)
 exports.chat = async (req, res) => {

@@ -57,7 +57,7 @@ const Navbar = () => {
               <span className="font-display font-bold text-ink text-lg leading-none">R</span>
             </span>
             <span className="font-display text-2xl font-bold tracking-tight text-neutral-900">
-              Ryd<span className="text-gradient">Zo</span>
+              Ryd<span className="text-gradient">ZO</span>
             </span>
           </Link>
 

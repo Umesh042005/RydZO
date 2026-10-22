@@ -482,7 +482,7 @@ const BookingDetails = () => {
                       onChange={(e) => setConsentFlags({ ...consentFlags, aggregatorDisclaimer: e.target.checked })}
                       className="w-5 h-5"
                     />
-                    <span>I understand RYDZO is only an aggregator *</span>
+                    <span>I understand RydZO is only an aggregator *</span>
                   </label>
                 </div>
                 <button
@@ -594,7 +594,7 @@ const BookingDetails = () => {
               <div className="flex gap-2 items-start mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
                 <FiClock className="shrink-0 mt-0.5" />
                 <span>
-                  The rider's documents are still being checked by RydZo. You can accept the request and hand over
+                  The rider's documents are still being checked by RydZO. You can accept the request and hand over
                   the bike once they are approved.
                 </span>
               </div>

@@ -32,12 +32,12 @@ const sendOTPviaEmail = async (email, otp) => {
     });
 
     await transporter.sendMail({
-      from: `RYDZO <${process.env.EMAIL_USER}>`,
+      from: `RydZO <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'RYDZO Verification Code',
+      subject: 'RydZO Verification Code',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333;">RYDZO Verification Code</h2>
+          <h2 style="color: #333;">RydZO Verification Code</h2>
           <p>Your verification code is:</p>
           <h1 style="color: #000; font-size: 32px; letter-spacing: 5px; margin: 20px 0;">${otp}</h1>
           <p>This code is valid for 5 minutes.</p>
@@ -76,7 +76,7 @@ const sendOTPviaSMS = async (phone, otp) => {
     //   process.env.TWILIO_AUTH_TOKEN
     // );
     // await client.messages.create({
-    //   body: `Your RYDZO verification code is: ${otp}. Valid for 5 minutes.`,
+    //   body: `Your RydZO verification code is: ${otp}. Valid for 5 minutes.`,
     //   from: process.env.TWILIO_PHONE_NUMBER,
     //   to: phone
     // });

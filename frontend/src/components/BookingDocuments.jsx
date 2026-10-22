@@ -113,7 +113,7 @@ const BookingDocuments = ({ onReady }) => {
           <p className="font-semibold text-neutral-900">Quick verification before your first ride</p>
           <p className="text-neutral-600 mt-1">
             Owners hand over their bikes only to verified riders. Upload these once; you can book right after,
-            and the owner confirms once RydZo approves them (usually quick).
+            and the owner confirms once RydZO approves them (usually quick).
           </p>
         </div>
       </div>

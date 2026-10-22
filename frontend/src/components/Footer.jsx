@@ -10,7 +10,7 @@ const Footer = () => (
             <span className="font-display font-bold text-ink leading-none">R</span>
           </span>
           <span className="font-display text-xl font-bold text-neutral-900">
-            Ryd<span className="text-gradient">Zo</span>
+            Ryd<span className="text-gradient">ZO</span>
           </span>
         </div>
         <p className="mt-4 text-sm text-neutral-500 max-w-xs">
@@ -30,12 +30,12 @@ const Footer = () => (
         </div>
       </div>
       <p className="text-xs text-neutral-500 leading-relaxed">
-        RydZo is a platform that connects owners and riders. Vehicle ownership stays with the owner, and handover and
-        return happen directly between owner and rider. RydZo is not responsible for vehicle condition, handover or incidents.
+        RydZO is a platform that connects owners and riders. Vehicle ownership stays with the owner, and handover and
+        return happen directly between owner and rider. RydZO is not responsible for vehicle condition, handover or incidents.
       </p>
     </div>
     <div className="border-t border-neutral-200/70 py-5 text-center text-xs text-neutral-500">
-      © {new Date().getFullYear()} RydZo. All rights reserved.
+      © {new Date().getFullYear()} RydZO. All rights reserved.
     </div>
   </footer>
 );

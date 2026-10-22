@@ -7,7 +7,7 @@ import { useAIEnabled, aiErrorMessage, AI_TIMEOUT_MS } from '../../services/ai';
 
 const GREETING = {
   role: 'assistant',
-  content: "Hi! I'm the RydZo assistant. Tell me what you need — e.g. \"a scooter under ₹500/day in Koramangala\" — or ask how booking works."
+  content: "Hi! I'm the RydZO assistant. Tell me what you need — e.g. \"a scooter under ₹500/day in Koramangala\" — or ask how booking works."
 };
 const SUGGESTIONS = ['Cheapest scooter for a day', 'How does the security deposit work?', 'What documents do I need?'];
 
@@ -62,10 +62,10 @@ const RideAssistant = () => {
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg"
-        aria-label="Open RydZo assistant"
+        aria-label="Open RydZO assistant"
       >
         <FiMessageCircle className="text-xl" />
-        <span className="hidden sm:inline font-semibold">Ask RydZo AI</span>
+        <span className="hidden sm:inline font-semibold">Ask RydZO AI</span>
       </button>
     );
   }
@@ -74,7 +74,7 @@ const RideAssistant = () => {
     <div className="fixed z-40 inset-x-2 bottom-2 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-96 h-[70vh] sm:h-[560px] flex flex-col bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 bg-primary-600 text-white">
         <div>
-          <p className="font-semibold">RydZo Assistant</p>
+          <p className="font-semibold">RydZO Assistant</p>
           <p className="text-xs opacity-80">AI answers can be wrong — check the bike page before booking.</p>
         </div>
         <button onClick={() => setOpen(false)} aria-label="Close assistant" className="p-1 rounded hover:bg-white/20">

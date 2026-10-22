@@ -274,7 +274,7 @@ const BikeDetails = () => {
               <h3 className="font-semibold mb-2">Handover Information</h3>
               <p className="text-neutral-700">
                 The bike will be provided directly by the owner at the agreed location and time. 
-                RYDZO acts only as an aggregator and is not responsible for bike handover.
+                RydZO acts only as an aggregator and is not responsible for bike handover.
               </p>
             </div>
 

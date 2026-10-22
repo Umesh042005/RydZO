@@ -139,7 +139,7 @@ const Home = () => {
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <p className="text-primary-400 font-semibold text-sm uppercase tracking-widest">Why RydZo</p>
+            <p className="text-primary-400 font-semibold text-sm uppercase tracking-widest">Why RydZO</p>
             <h2 className="mt-3 font-display text-4xl md:text-5xl font-bold text-neutral-900">Built on trust, made for riders</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -134,7 +134,7 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(userData);
 
-      toast.success(isNewUser ? `Welcome to RydZo, ${userData.name}!` : 'Login successful!');
+      toast.success(isNewUser ? `Welcome to RydZO, ${userData.name}!` : 'Login successful!');
       return { success: true, user: userData, isNewUser };
     } catch (error) {
       const message = error.response?.data?.message || 'Google sign-in failed';
