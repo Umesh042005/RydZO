@@ -120,6 +120,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Google sign-in / sign-up. `role` is only used when the account is new.
+  const loginWithGoogle = async (credential, role) => {
+    try {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`, {
+        credential,
+        role
+      });
+
+      const { token, user: userData, isNewUser } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(userData);
+
+      toast.success(isNewUser ? `Welcome to RydZo, ${userData.name}!` : 'Login successful!');
+      return { success: true, user: userData, isNewUser };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Google sign-in failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -141,6 +164,7 @@ export const AuthProvider = ({ children }) => {
       register,
       sendOTP,
       verifyOTP,
+      loginWithGoogle,
       logout,
       updateUser
     }}>

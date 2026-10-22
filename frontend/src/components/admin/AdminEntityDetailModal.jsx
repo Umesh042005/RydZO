@@ -11,6 +11,8 @@ import {
   FiAlertTriangle
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import AIDocumentCheck from '../ai/AIDocumentCheck';
+import { useAIEnabled } from '../../services/ai';
 
 const isLikelyPdf = (url) =>
   typeof url === 'string' && url.toLowerCase().includes('.pdf');
@@ -71,6 +73,7 @@ const AdminEntityDetailModal = ({
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const aiEnabled = useAIEnabled();
 
   // Reset reject form state whenever modal opens or target changes
   useEffect(() => {
@@ -261,6 +264,10 @@ const AdminEntityDetailModal = ({
                   <DocPreview label="PAN Card" url={data.panDocumentUrl} />
                 </div>
               </div>
+
+              {aiEnabled && data.drivingLicense?.documentUrl && (
+                <AIDocumentCheck key={data._id} type="customer" id={data._id} />
+              )}
             </>
           )}
 
@@ -376,6 +383,8 @@ const AdminEntityDetailModal = ({
                   <DocPreview label="Insurance Document" url={data.documents?.insurance?.documentUrl} />
                 </div>
               </div>
+
+              {aiEnabled && <AIDocumentCheck key={data._id} type="bike" id={data._id} />}
             </>
           )}
 

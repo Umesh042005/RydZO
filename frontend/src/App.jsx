@@ -17,6 +17,7 @@ import BookingDetails from './pages/BookingDetails';
 import OwnerBookings from './pages/OwnerBookings';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
+import RideAssistant from './components/ai/RideAssistant';
 
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -54,7 +55,7 @@ function App() {
     <AuthProvider>
       <NotificationProvider>
         <Router>
-          <div className="min-h-screen bg-white">
+          <div className="min-h-screen">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
@@ -118,19 +119,21 @@ function App() {
                 }
               />
             </Routes>
+            <RideAssistant />
             <Toaster
               position="top-right"
               toastOptions={{
                 duration: 4000,
                 style: {
-                  background: '#fff',
-                  color: '#262626',
+                  background: '#141a17',
+                  color: '#f3f6f4',
+                  border: '1px solid #262f2a',
                   borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
                 },
                 success: {
                   iconTheme: {
-                    primary: '#16a34a',
+                    primary: '#22c55e',
                     secondary: '#fff',
                   },
                 },

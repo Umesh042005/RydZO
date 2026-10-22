@@ -49,12 +49,15 @@ const Navbar = () => {
 
 
   return (
-    <nav className="bg-primary-800 shadow-lg sticky top-0 z-50">
+    <nav className="sticky top-0 z-50 bg-ink/70 backdrop-blur-xl border-b border-neutral-200/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="text-3xl font-bold text-white bg-black rounded-lg px-8 py-2">
-              RydZO
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-400 to-emerald-600 flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
+              <span className="font-display font-bold text-ink text-lg leading-none">R</span>
+            </span>
+            <span className="font-display text-2xl font-bold tracking-tight text-neutral-900">
+              Ryd<span className="text-gradient">Zo</span>
             </span>
           </Link>
 
@@ -64,7 +67,7 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-6">
             {/* Common Public/Customer Link */}
             {(user?.role === 'customer' || !user) && (
-              <Link to="/bikes" className="text-white hover:text-primary-200 font-medium transition-colors">
+              <Link to="/bikes" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                 Rent Bikes
               </Link>
             )}
@@ -74,14 +77,14 @@ const Navbar = () => {
                 {/* Owner Links */}
                 {user.role === 'owner' && (
                   <>
-                    <Link to="/dashboard" className="text-white hover:text-primary-200 font-medium transition-colors">
+                    <Link to="/dashboard" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                       Dashboard
                     </Link>
                     {/* Assuming Owner's "My Bikes" might be filtered list or dashboard bike list. Using /bikes/create for now as "Add Bike" was previous equivalent or maybe they mean manageable list */}
-                    <Link to="/bikes/create" className="text-white hover:text-primary-200 font-medium transition-colors">
+                    <Link to="/bikes/create" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                       Browse Bikes
                     </Link>
-                    <Link to="/owner/bookings" className="text-white hover:text-primary-200 font-medium transition-colors">
+                    <Link to="/owner/bookings" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                       Bookings
                     </Link>
                   </>
@@ -89,37 +92,37 @@ const Navbar = () => {
 
                 {/* Customer Links */}
                 {user.role === 'customer' && (
-                  <Link to="/bookings" className="text-white hover:text-primary-200 font-medium transition-colors">
+                  <Link to="/bookings" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                     My Bookings
                   </Link>
                 )}
 
                 {/* Admin Links */}
                 {user.role === 'admin' && (
-                  <Link to="/admin" className="text-white hover:text-primary-200 font-medium transition-colors">
+                  <Link to="/admin" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                     Admin Panel
                   </Link>
                 )}
 
-                <Link to="/profile" className="text-white hover:text-primary-200 font-medium transition-colors">
+                <Link to="/profile" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                   Profile
                 </Link>
 
 
                 {/* Notification Bell */}
                 <div className="relative" ref={notificationRef}>
-                  <button onClick={toggleNotifications} className="relative text-white hover:text-primary-200 p-2 focus:outline-none">
+                  <button onClick={toggleNotifications} className="relative text-neutral-700 hover:text-primary-300 p-2 focus:outline-none">
                     <FiBell size={24} />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-primary-800">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-ink">
                         {unreadCount}
                       </span>
                     )}
                   </button>
 
                   {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl overflow-hidden z-50 ring-1 ring-black ring-opacity-5">
-                      <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-card overflow-hidden z-50 border border-neutral-200">
+                      <div className="p-3 border-b border-neutral-200 bg-neutral-50 flex justify-between items-center">
                         <h3 className="font-semibold text-gray-700">Notifications</h3>
                         <button
                           onClick={(e) => {
@@ -139,7 +142,7 @@ const Navbar = () => {
                             <div
                               key={notif._id}
                               onClick={() => handleNotificationClick(notif)}
-                              className={`p-3 border-b cursor-pointer hover:bg-gray-50 transition-colors ${!notif.isRead ? 'bg-blue-50' : 'bg-white'}`}
+                              className={`p-3 border-b border-neutral-200 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.isRead ? 'bg-blue-50' : 'bg-white'}`}
                             >
                               <p className="text-sm text-gray-800">{notif.message}</p>
                               <p className="text-xs text-gray-500 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
@@ -153,10 +156,10 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="text-white hover:text-primary-200 font-medium transition-colors">
+                <Link to="/login" className="text-neutral-700 hover:text-primary-300 font-medium transition-colors">
                   Login
                 </Link>
-                <Link to="/register" className="bg-white text-primary-800 px-6 py-2 rounded-lg font-semibold hover:bg-primary-50 transition-colors duration-200">
+                <Link to="/register" className="btn-primary !px-5 !py-2">
                   Sign Up
                 </Link>
               </>
@@ -165,7 +168,7 @@ const Navbar = () => {
 
 
           <button
-            className="md:hidden text-white"
+            className="md:hidden text-neutral-900 p-2 -mr-2"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
@@ -175,14 +178,14 @@ const Navbar = () => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-primary-700 border-t border-primary-600">
+        <div className="md:hidden bg-white/95 backdrop-blur-xl border-t border-neutral-200">
           <div className="px-4 pt-2 pb-4 space-y-2">
 
             {/* Common Public/Customer Link - Mobile */}
             {(user?.role === 'customer' || !user) && (
               <Link
                 to="/bikes"
-                className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Rent Bikes
@@ -196,21 +199,21 @@ const Navbar = () => {
                   <>
                     <Link
                       to="/dashboard"
-                      className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                      className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Dashboard
                     </Link>
                     <Link
                       to="/bikes/create"
-                      className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                      className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       My Bikes
                     </Link>
                     <Link
                       to="/owner/bookings"
-                      className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                      className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Bookings
@@ -222,7 +225,7 @@ const Navbar = () => {
                 {user.role === 'customer' && (
                   <Link
                     to="/bookings"
-                    className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                    className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     My Bookings
@@ -233,7 +236,7 @@ const Navbar = () => {
                 {user.role === 'admin' && (
                   <Link
                     to="/admin"
-                    className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                    className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Admin Panel
@@ -242,7 +245,7 @@ const Navbar = () => {
 
                 <Link
                   to="/profile"
-                  className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                  className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Profile
@@ -253,14 +256,14 @@ const Navbar = () => {
               <>
                 <Link
                   to="/login"
-                  className="block px-4 py-2 text-white hover:bg-primary-600 rounded-lg"
+                  className="block px-4 py-3 text-neutral-800 hover:bg-neutral-100 rounded-xl"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="block px-4 py-2 bg-white text-primary-800 rounded-lg text-center font-semibold"
+                  className="btn-primary w-full !py-3"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Sign Up

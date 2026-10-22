@@ -45,7 +45,7 @@ const MyBookings = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">Loading...</div>
@@ -55,7 +55,7 @@ const MyBookings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 py-12">
         <h1 className="text-4xl font-bold mb-8 text-neutral-900">My Bookings</h1>

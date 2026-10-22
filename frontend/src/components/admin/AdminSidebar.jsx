@@ -35,7 +35,7 @@ const AdminSidebar = ({ activeTab, setActiveTab, pendingCount = 0 }) => {
   ];
 
   return (
-    <aside className="w-64 bg-[#091811] border-r border-[#153424] flex flex-col justify-between shrink-0 min-h-screen text-neutral-200 select-none">
+    <aside className="w-64 bg-[#091811] border-r border-[#153424] flex flex-col justify-between shrink-0 min-h-screen text-neutral-800 select-none">
       {/* Brand & Header */}
       <div>
         <div className="h-20 flex items-center px-6 border-b border-[#153424]">
@@ -50,14 +50,14 @@ const AdminSidebar = ({ activeTab, setActiveTab, pendingCount = 0 }) => {
                   Admin
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400 font-medium">Marketplace Portal</p>
+              <p className="text-[11px] text-neutral-500 font-medium">Marketplace Portal</p>
             </div>
           </div>
         </div>
 
         {/* Navigation Items */}
         <div className="py-6 px-3 space-y-1.5">
-          <p className="px-3 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+          <p className="px-3 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
             Main Navigation
           </p>
           {navItems.map((item) => {
@@ -71,13 +71,13 @@ const AdminSidebar = ({ activeTab, setActiveTab, pendingCount = 0 }) => {
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group ${
                   isActive
                     ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white font-semibold shadow-md shadow-primary-950/40 border border-primary-600/40'
-                    : 'text-neutral-300 hover:text-white hover:bg-[#12281d]'
+                    : 'text-neutral-700 hover:text-white hover:bg-[#12281d]'
                 }`}
               >
                 <div className="flex items-center space-x-3">
                   <Icon
                     className={`text-lg transition-colors ${
-                      isActive ? 'text-primary-300' : 'text-neutral-400 group-hover:text-primary-400'
+                      isActive ? 'text-primary-300' : 'text-neutral-500 group-hover:text-primary-400'
                     }`}
                   />
                   <span>{item.label}</span>
@@ -111,9 +111,9 @@ const AdminSidebar = ({ activeTab, setActiveTab, pendingCount = 0 }) => {
       <div className="p-4 border-t border-[#153424]">
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center space-x-2.5 px-4 py-3 rounded-xl text-neutral-300 hover:text-white hover:bg-rose-950/40 hover:border-rose-800/50 border border-transparent transition-all duration-200 font-medium text-sm group"
+          className="w-full flex items-center justify-center space-x-2.5 px-4 py-3 rounded-xl text-neutral-700 hover:text-white hover:bg-rose-950/40 hover:border-rose-800/50 border border-transparent transition-all duration-200 font-medium text-sm group"
         >
-          <FiLogOut className="text-neutral-400 group-hover:text-rose-400 text-base transition-colors" />
+          <FiLogOut className="text-neutral-500 group-hover:text-rose-400 text-base transition-colors" />
           <span className="group-hover:text-rose-300">Sign Out</span>
         </button>
       </div>

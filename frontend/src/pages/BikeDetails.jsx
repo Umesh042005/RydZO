@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import BookingDocuments from '../components/BookingDocuments';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -35,6 +36,9 @@ const BikeDetails = () => {
     endTime: ''
   });
   const [showBookingForm, setShowBookingForm] = useState(false);
+  // null = not checked yet; the documents step decides and flips this to true.
+  const [docsReady, setDocsReady] = useState(null);
+  const handleDocsReady = useCallback(() => setDocsReady(true), []);
   const [routeInfo, setRouteInfo] = useState(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState(null);
@@ -134,13 +138,16 @@ const BikeDetails = () => {
       toast.success('Booking created! Please accept the agreement.');
       navigate(`/bookings/${response.data.booking._id}`);
     } catch (error) {
+      if (error.response?.data?.code === 'DOCUMENTS_REQUIRED') {
+        setDocsReady(false);
+      }
       toast.error(error.response?.data?.message || 'Failed to create booking');
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">Loading...</div>
@@ -151,7 +158,7 @@ const BikeDetails = () => {
 
   if (!bike) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">Bike not found</div>
@@ -176,7 +183,7 @@ const BikeDetails = () => {
   ].filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid lg:grid-cols-2 gap-8">
@@ -364,6 +371,19 @@ const BikeDetails = () => {
               </div>
             </div>
 
+            {!user && (
+              <div className="card text-center space-y-3">
+                <p className="font-display text-lg font-semibold text-neutral-900">Like this bike?</p>
+                <p className="text-sm text-neutral-500">Log in or create a free rider account to book it.</p>
+                <button onClick={() => navigate('/login')} className="w-full btn-primary">
+                  Login to Book
+                </button>
+                <button onClick={() => navigate('/register')} className="w-full btn-secondary">
+                  Create Account
+                </button>
+              </div>
+            )}
+
             {/* Booking Form */}
             {user?.role === 'customer' && (
               <div className="card">
@@ -374,7 +394,11 @@ const BikeDetails = () => {
                   {showBookingForm ? 'Cancel Booking' : 'Book This Bike'}
                 </button>
 
-                {showBookingForm && (
+                {showBookingForm && !docsReady && (
+                  <BookingDocuments key={String(docsReady)} onReady={handleDocsReady} />
+                )}
+
+                {showBookingForm && docsReady && (
                   <form onSubmit={handleBooking} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Rental Type</label>

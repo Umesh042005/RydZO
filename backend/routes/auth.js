@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, sendOTP, verifyOTP, resendOTP, checkRole } = require('../controllers/authController');
+const { register, login, sendOTP, verifyOTP, resendOTP, checkRole, googleAuth } = require('../controllers/authController');
 const { authLimiter, otpVerifyLimiter } = require('../middleware/rateLimit');
 
 router.use(authLimiter);
@@ -9,6 +9,11 @@ router.use(authLimiter);
 // @desc    Check user role before login
 // @access  Public
 router.post('/check-role', checkRole);
+
+// @route   POST /api/auth/google
+// @desc    Sign in / sign up with a Google ID token
+// @access  Public
+router.post('/google', googleAuth);
 
 // @route   POST /api/auth/register
 // @desc    Register new user

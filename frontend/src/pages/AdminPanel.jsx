@@ -395,7 +395,7 @@ const AdminPanel = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8faf9] text-neutral-900 font-sans antialiased">
+    <div className="flex min-h-screen bg-transparent text-neutral-900 font-sans antialiased">
       {/* 1. Left Sidebar Navigation */}
       <AdminSidebar
         activeTab={activeTab}

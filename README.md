@@ -111,6 +111,36 @@ RydZo/
 
 ---
 
+## 🤖 AI Features
+
+| Feature | Who | Where |
+|---|---|---|
+| **Listing assistant**: writes the bike description and suggests ₹/hour and ₹/day prices from similar listings | Owner | List Your Bike → "✨ Write with AI + suggest price" |
+| **Damage check**: compares return photos with the listing/handover photos, flags new damage and estimates repair cost | Owner (admin sees report) | Booking details, once the ride has started |
+| **Document check**: reads RC / insurance / PUC and driving licence, flags number, name and expiry mismatches | Admin | Admin panel → bike / customer details → "Run check" |
+| **Ride assistant**: chat that searches available bikes and answers booking questions | Customers & visitors | Floating "Ask RydZo AI" button |
+
+The backend talks to the AI through the Ollama chat API. By default it uses **Ollama Cloud**, so nothing has to run locally.
+
+**Setup (Ollama Cloud):**
+1. Create a key at <https://ollama.com/settings/keys>.
+2. Pick models from <https://ollama.com/search?c=cloud>: one for text and tool calling, and one that accepts images (vision).
+3. Add to `backend/.env` and restart the backend:
+   ```
+   AI_API_URL=https://ollama.com/api/chat
+   AI_API_KEY=your-key-here
+   AI_MODEL=gpt-oss:20b
+   AI_VISION_MODEL=gemma4:31b
+   ```
+
+Without `AI_API_KEY` the AI buttons stay hidden. To use a local Ollama instead, set
+`AI_API_URL=http://localhost:11434/api/chat` (no key needed). `AI_ENABLED=false` turns all AI features off,
+and `AI_TIMEOUT_MS` (default 180000) controls how long to wait for an answer.
+
+Note: the Ollama Cloud free plan runs one request at a time; others wait in a queue.
+
+---
+
 ## 📝 Usage Guide
 
 1.  **Register**: Create an account as a "Customer" or "Owner".

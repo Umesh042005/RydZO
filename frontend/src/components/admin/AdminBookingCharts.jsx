@@ -216,7 +216,7 @@ const AdminBookingCharts = ({ stats = {}, bookings = [] }) => {
                     <Cell
                       key={`cell-${index}`}
                       fill={entry.color}
-                      stroke="#ffffff"
+                      stroke="#101513"
                       strokeWidth={2}
                     />
                   ))}

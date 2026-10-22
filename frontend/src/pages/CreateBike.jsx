@@ -10,6 +10,7 @@ import OSMLocationSearchInput from '../components/maps/osm/OSMLocationSearchInpu
 import OSMMapView from '../components/maps/osm/OSMMapView';
 import { isOsmProvider } from '../config/mapProvider';
 import { reverseGeocode } from '../services/osm/osmGeocodingService';
+import { useAIEnabled, aiErrorMessage, AI_TIMEOUT_MS } from '../services/ai';
 
 const ActiveLocationSearchInput = isOsmProvider() ? OSMLocationSearchInput : LocationSearchInput;
 const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
@@ -59,6 +60,42 @@ const CreateBike = () => {
 const [uploading, setUploading] = useState({});
   const [loading, setLoading] = useState(false);
   const [createdBikeId, setCreatedBikeId] = useState(null);
+  const aiEnabled = useAIEnabled();
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+
+  const handleAIAssist = async () => {
+    if (!formData.brand.trim() || !formData.model.trim()) {
+      toast.error('Enter the brand and model first');
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const { data } = await api.post('/api/ai/listing-assist', {
+        brand: formData.brand,
+        model: formData.model,
+        manufacturingYear: formData.manufacturingYear,
+        mileage: formData.mileage,
+        condition: formData.condition,
+        notes: formData.description
+      }, { timeout: AI_TIMEOUT_MS });
+      setFormData(prev => ({ ...prev, description: data.description }));
+      setAiSuggestion(data);
+      toast.success('Description drafted. Review it before saving.');
+    } catch (error) {
+      toast.error(aiErrorMessage(error, 'Could not generate a description'));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applySuggestedPrices = () => {
+    setFormData(prev => ({
+      ...prev,
+      hourlyPrice: aiSuggestion.suggestedHourly ?? prev.hourlyPrice,
+      dailyPrice: aiSuggestion.suggestedDaily ?? prev.dailyPrice
+    }));
+  };
 
    const handleImageSelect = (e, key) => {
     const file = e.target.files[0];
@@ -249,7 +286,7 @@ const [uploading, setUploading] = useState({});
 
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <Navbar />
       <div className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="text-4xl font-bold mb-8 text-neutral-900">List Your Bike</h1>
@@ -340,16 +377,47 @@ const [uploading, setUploading] = useState({});
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Description</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium">Description</label>
+              {aiEnabled && (
+                <button
+                  type="button"
+                  onClick={handleAIAssist}
+                  disabled={aiLoading}
+                  className="text-sm font-semibold text-primary-700 hover:text-primary-900 disabled:opacity-50"
+                >
+                  {aiLoading ? 'Writing…' : '✨ Write with AI + suggest price'}
+                </button>
+              )}
+            </div>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleChange}
               className="input-field"
               rows="4"
-              placeholder="Describe your bike..."
+              placeholder="Describe your bike... (or type a few notes and let AI write it)"
             />
           </div>
+
+          {aiSuggestion && (aiSuggestion.suggestedHourly || aiSuggestion.suggestedDaily) && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-primary-50 border border-primary-200 text-sm">
+              <div>
+                <p className="font-semibold text-primary-900">
+                  AI suggested price: ₹{aiSuggestion.suggestedHourly ?? '—'}/hour · ₹{aiSuggestion.suggestedDaily ?? '—'}/day
+                </p>
+                {aiSuggestion.reasoning && <p className="text-neutral-600 mt-1">{aiSuggestion.reasoning}</p>}
+                {aiSuggestion.market?.comparables > 0 && (
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Based on {aiSuggestion.market.comparables} similar listings (median ₹{aiSuggestion.market.hourly}/hr, ₹{aiSuggestion.market.daily}/day)
+                  </p>
+                )}
+              </div>
+              <button type="button" onClick={applySuggestedPrices} className="btn-secondary whitespace-nowrap">
+                Use these prices
+              </button>
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-6">
             <div>

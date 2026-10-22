@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import GoogleAuthButton from '../components/GoogleAuthButton';
 import Navbar from "../components/Navbar";
 import { FiMail, FiPhone, FiLock } from "react-icons/fi";
 
@@ -112,7 +113,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <Navbar />
 
       <div className="max-w-md mx-auto px-4 py-12">
@@ -226,10 +227,12 @@ const Login = () => {
             </button>
           </form>
 
+          <GoogleAuthButton text="signin_with" />
+
           <div className="mt-6 text-center">
             <p>
               Don't have an account?{" "}
-              <Link to="/register" className="text-blue-600 font-semibold">
+              <Link to="/register" className="text-primary-400 font-semibold">
                 Sign up
               </Link>
             </p>

@@ -4,6 +4,9 @@ const User = require('../models/User');
 const Agreement = require('../models/Agreement');
 const Notification = require('../models/Notification');
 const agreementTemplate = require('../utils/agreementTemplate');
+const { BOOKING_REQUIREMENTS, missingBookingDocs, isCustomerApproved } = require('../utils/bookingEligibility');
+
+const CUSTOMER_UNDER_REVIEW = "The customer's documents are still under RydZo review. You can continue once an admin approves them.";
 
 function calculateInsuranceStatus(bike) {
   try {
@@ -58,10 +61,23 @@ exports.createBooking = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Customer only.' });
     }
 
-    // Check if customer is approved
-    if (req.user.customerApprovalStatus !== 'approved') {
+    // Documents are collected at booking time. The request can be sent while an admin
+    // reviews them; the owner can only accept / start the ride after approval.
+    if (req.user.customerApprovalStatus === 'rejected') {
       return res.status(403).json({
-        message: 'Your account is not approved yet. Please wait for admin approval.'
+        code: 'VERIFICATION_REJECTED',
+        message: req.user.customerApprovalNote
+          ? `Your verification was rejected: ${req.user.customerApprovalNote}. Please re-upload your documents from your profile.`
+          : 'Your verification was rejected. Please re-upload your documents from your profile.'
+      });
+    }
+    // Already-approved customers were verified under the old flow; don't re-ask.
+    const missing = isCustomerApproved(req.user) ? [] : missingBookingDocs(req.user);
+    if (missing.length) {
+      return res.status(403).json({
+        code: 'DOCUMENTS_REQUIRED',
+        message: `Please add ${missing.map((k) => BOOKING_REQUIREMENTS[k]).join(', ')} to book.`,
+        missing
       });
     }
 
@@ -413,6 +429,11 @@ exports.startRental = async (req, res) => {
       return res.status(400).json({ message: 'Owner acceptance is required before starting the ride' });
     }
 
+    const customer = await User.findById(booking.customer).select('customerApprovalStatus');
+    if (!isCustomerApproved(customer)) {
+      return res.status(400).json({ message: CUSTOMER_UNDER_REVIEW });
+    }
+
     // Security deposit must be authorized by customer before ride can start
     if (booking.securityDepositStatus === 'pending') {
       return res.status(400).json({ message: 'Security deposit must be authorized by the customer before starting the ride' });
@@ -577,6 +598,11 @@ exports.ownerRespondToBooking = async (req, res) => {
     }
 
     if (decision === 'accept') {
+      const customer = await User.findById(booking.customer).select('customerApprovalStatus');
+      if (!isCustomerApproved(customer)) {
+        return res.status(400).json({ message: CUSTOMER_UNDER_REVIEW });
+      }
+
       // Re-check overlapping confirmed/ongoing bookings right before accepting
       const conflict = await Booking.findOne({
         _id: { $ne: booking._id },

@@ -1,10 +1,13 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const { generateOTP, sendOTPviaSMS, sendOTPviaEmail } = require('../utils/otp');
 const { isNonEmptyString, buildIdentityFilter } = require('../utils/validation');
 
 // Roles a user may pick at self-registration. Admins are created only via create-admin.js.
 const SELF_REGISTER_ROLES = ['customer', 'owner'];
+
+const googleClient = new OAuth2Client();
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET || 'rydzo_secret_key', {
@@ -87,6 +90,10 @@ exports.login = async (req, res) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (!user.password) {
+      return res.status(401).json({ message: 'This account uses Google sign-in. Please continue with Google.' });
     }
 
     // Check password
@@ -294,3 +301,88 @@ exports.checkRole = async (req, res) => {
   }
 };
 
+
+// @desc    Sign in or sign up with Google
+// @route   POST /api/auth/google
+// @access  Public
+// Body: { credential: <Google ID token>, role?: 'customer' | 'owner' (only used for new accounts) }
+exports.googleAuth = async (req, res) => {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({ message: 'Google sign-in is not configured on this server' });
+    }
+
+    const { credential, role } = req.body || {};
+    if (!isNonEmptyString(credential)) {
+      return res.status(400).json({ message: 'Missing Google credential' });
+    }
+    if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: clientId });
+      payload = ticket.getPayload();
+    } catch (err) {
+      return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
+    }
+
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
+      return res.status(401).json({ message: 'Your Google email is not verified' });
+    }
+
+    const email = payload.email.toLowerCase();
+    let user = await User.findOne({ googleId: payload.sub });
+    let isNewUser = false;
+
+    if (!user) {
+      // Same email registered with a password: link it (Google has verified the email).
+      user = await User.findOne({ email });
+      if (user) {
+        if (user.role === 'admin') {
+          return res.status(403).json({ message: 'Admins must sign in with the admin login' });
+        }
+        user.googleId = payload.sub;
+        if (!user.profileImage && payload.picture) user.profileImage = payload.picture;
+        user.isVerified = true;
+        await user.save();
+      } else {
+        user = await User.create({
+          name: payload.name || email.split('@')[0],
+          email,
+          googleId: payload.sub,
+          profileImage: payload.picture,
+          role: role || 'customer',
+          isVerified: true
+        });
+        isNewUser = true;
+      }
+    }
+
+    if (user.role === 'admin') {
+      return res.status(403).json({ message: 'Admins must sign in with the admin login' });
+    }
+    if (!user.isActive) {
+      return res.status(403).json({ message: 'This account has been blocked' });
+    }
+
+    const token = generateToken(user._id);
+    res.status(isNewUser ? 201 : 200).json({
+      token,
+      isNewUser,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified
+      }
+    });
+  } catch (error) {
+    console.error('Google auth error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

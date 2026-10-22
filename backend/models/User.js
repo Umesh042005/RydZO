@@ -14,16 +14,23 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  // Google sign-in users may not have a phone or password yet; they add the phone
+  // when they book (see bookingController.createBooking).
   phone: {
     type: String,
     unique: true,
     sparse: true,
-    required: true
+    required: function () { return !this.googleId; }
   },
   password: {
     type: String,
-    required: true,
+    required: function () { return !this.googleId; },
     minlength: 6
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
   },
   role: {
     type: String,
@@ -131,6 +138,7 @@ userSchema.pre('save', async function (next) {
 
 // Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false; // Google-only account
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

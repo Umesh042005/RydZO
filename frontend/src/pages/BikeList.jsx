@@ -2,11 +2,24 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
-import { FiSearch, FiPackage } from 'react-icons/fi';
+import { FiSearch, FiPackage, FiMapPin, FiSliders, FiCalendar, FiActivity } from 'react-icons/fi';
+
+// "Royal enfield" + "Royal Enfield Meteor" -> "Royal Enfield Meteor"
+const displayName = (bike) => {
+  const brand = (bike.brand || '').trim();
+  const model = (bike.model || '').trim();
+  return model.toLowerCase().startsWith(brand.toLowerCase()) ? model : `${brand} ${model}`.trim();
+};
+
+const getMainImage = (bike) => {
+  const images = bike?.images || {};
+  return images.frontView || images.sideView || images.backView || images.meterPhoto || images.scratches;
+};
 
 const BikeList = () => {
   const [bikes, setBikes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     minPrice: '',
@@ -42,64 +55,62 @@ const BikeList = () => {
     fetchBikes();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          <div className="text-center">Loading...</div>
-        </div>
-      </div>
-    );
-  }
-
-  const getBikeImageUrls = (bike) => {
-    const images = bike?.images || {};
-    return [
-      images.frontView,
-      images.backView,
-      images.sideView,
-      images.meterPhoto,
-      images.scratches
-    ].filter(Boolean);
-  };
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-8 text-neutral-900">Browse Bikes</h1>
+      <div className="max-w-7xl mx-auto px-4 py-10 md:py-14">
+        <div className="mb-8">
+          <p className="text-primary-400 font-semibold text-sm uppercase tracking-widest">Rent a ride</p>
+          <h1 className="mt-2 font-display text-4xl md:text-5xl font-bold text-neutral-900">Browse Bikes</h1>
+          {!loading && (
+            <p className="mt-2 text-neutral-500">
+              {bikes.length} {bikes.length === 1 ? 'bike' : 'bikes'} available right now
+            </p>
+          )}
+        </div>
 
         {/* Search and Filters */}
-        <div className="card mb-8">
+        <div className="card !p-4 md:!p-5 mb-10">
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <div className="flex-1 relative">
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400" />
+                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-field pl-10"
-                  placeholder="Search by bike number, brand, or model..."
+                  className="input-field pl-11"
+                  placeholder="Search brand or model..."
                 />
               </div>
-              <button type="submit" className="btn-primary">
-                Search
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className="md:hidden btn-secondary !px-4"
+                aria-label="Toggle filters"
+              >
+                <FiSliders />
+                {activeFilterCount > 0 && <span className="text-xs">{activeFilterCount}</span>}
+              </button>
+              <button type="submit" className="btn-primary !px-5 md:!px-8" aria-label="Search">
+                <span className="hidden sm:inline">Search</span>
+                <FiSearch className="sm:hidden" />
               </button>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className={`${showFilters ? 'grid' : 'hidden'} md:grid grid-cols-2 md:grid-cols-4 gap-3`}>
               <input
                 type="number"
-                placeholder="Min Price/Hour"
+                placeholder="Min ₹/hour"
                 value={filters.minPrice}
                 onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
                 className="input-field"
               />
               <input
                 type="number"
-                placeholder="Max Price/Hour"
+                placeholder="Max ₹/hour"
                 value={filters.maxPrice}
                 onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
                 className="input-field"
@@ -127,72 +138,77 @@ const BikeList = () => {
         </div>
 
         {/* Bike Grid */}
-        {bikes.length === 0 ? (
-          <div className="card text-center py-12">
-            <FiPackage className="text-6xl text-neutral-400 mx-auto mb-4" />
-            <p className="text-xl text-neutral-600">No bikes found</p>
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="card !p-0 overflow-hidden animate-pulse">
+                <div className="h-52 bg-neutral-100" />
+                <div className="p-5 space-y-3">
+                  <div className="h-5 w-2/3 bg-neutral-100 rounded" />
+                  <div className="h-4 w-1/2 bg-neutral-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : bikes.length === 0 ? (
+          <div className="card text-center py-16">
+            <FiPackage className="text-5xl text-neutral-400 mx-auto mb-4" />
+            <p className="font-display text-xl text-neutral-800">No bikes found</p>
+            <p className="text-neutral-500 mt-1 text-sm">Try a different search or clear the filters.</p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bikes.map((bike) => (
-              (() => {
-                const imageUrls = getBikeImageUrls(bike);
-                const mainImage = imageUrls[0];
-                return (
-              <Link
-                key={bike._id}
-                to={`/bikes/${bike._id}`}
-                className="card hover:shadow-xl transition-shadow"
-              >
-                {mainImage ? (
-                  <img
-                    src={mainImage}
-                    alt={bike.bikeNumber}
-                    className="w-full h-48 object-cover rounded-lg mb-4"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div 
-                  className="w-full h-48 bg-neutral-200 rounded-lg mb-4 flex items-center justify-center"
-                  style={{ display: mainImage ? 'none' : 'flex' }}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {bikes.map((bike) => {
+              const mainImage = getMainImage(bike);
+              return (
+                <Link
+                  key={bike._id}
+                  to={`/bikes/${bike._id}`}
+                  className="group card !p-0 overflow-hidden hover:-translate-y-1 hover:border-primary-500/40 hover:shadow-glow"
                 >
-                  <span className="text-neutral-400">No Image</span>
-                </div>
-
-                {imageUrls.length > 1 && (
-                  <div className="flex gap-2 mb-4 overflow-x-auto">
-                    {imageUrls.slice(0, 5).map((url, idx) => (
+                  <div className="relative h-52 bg-neutral-100 overflow-hidden">
+                    {mainImage ? (
                       <img
-                        key={`${bike._id}-thumb-${idx}`}
-                        src={url}
-                        alt={`Bike ${bike.bikeNumber} ${idx + 1}`}
-                        className="w-14 h-14 object-cover rounded-md border border-neutral-200 flex-shrink-0"
+                        src={mainImage}
+                        alt={displayName(bike)}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
-                    ))}
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400 text-sm">No image</div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    {bike.condition && (
+                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-black/60 backdrop-blur text-primary-300 border border-primary-500/30">
+                        {bike.condition}
+                      </span>
+                    )}
+                    <div className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur border border-neutral-200/60">
+                      <span className="font-display text-lg font-bold text-primary-300">₹{bike.pricing?.hourly}</span>
+                      <span className="text-xs text-neutral-600">/hr</span>
+                    </div>
                   </div>
-                )}
 
-                <h3 className="text-xl font-semibold mb-2">
-                  {bike.brand} {bike.model}
-                </h3>
-                <p className="text-neutral-600 mb-2">Number: {bike.bikeNumber}</p>
-                <p className="text-neutral-600 mb-2">Year: {bike.manufacturingYear}</p>
-                <p className="text-neutral-600 mb-2">Mileage: {bike.mileage} km</p>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-2xl font-bold text-primary-700">
-                    ₹{bike.pricing?.hourly}/hr
-                  </span>
-                  <span className="text-neutral-600">
-                    ₹{bike.pricing?.daily}/day
-                  </span>
-                </div>
-              </Link>
-                );
-              })()
-            ))}
+                  <div className="p-5">
+                    <h3 className="font-display text-lg font-semibold text-neutral-900 truncate">
+                      {displayName(bike)}
+                    </h3>
+                    <p className="mt-1 text-sm text-neutral-500 flex items-center gap-1.5">
+                      <FiMapPin className="shrink-0 text-primary-400" />
+                      <span className="truncate">{bike.handoverLocation?.address || 'Pickup location on request'}</span>
+                    </p>
+                    <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
+                      <div className="flex gap-3">
+                        <span className="flex items-center gap-1"><FiCalendar /> {bike.manufacturingYear}</span>
+                        <span className="flex items-center gap-1"><FiActivity /> {bike.mileage} km</span>
+                      </div>
+                      <span className="text-neutral-700 font-semibold">₹{bike.pricing?.daily}/day</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
@@ -201,4 +217,3 @@ const BikeList = () => {
 };
 
 export default BikeList;
-

@@ -65,6 +65,7 @@ app.use('/api/agreements', require('./routes/agreements'));
 app.use('/api/admin', require('./routes/admin'));
 // app.use('/api/damage-proof', require('./routes/damageProof')); // Disabled for current version
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/ai', require('./routes/ai'));
 
 // Error handling middleware for multer and other errors
 app.use((error, req, res, next) => {
