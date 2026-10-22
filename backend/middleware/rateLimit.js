@@ -28,4 +28,13 @@ const strictOptions = {
 const otpVerifyLimiter = rateLimit(strictOptions);
 const adminLoginLimiter = rateLimit(strictOptions);
 
-module.exports = { authLimiter, otpVerifyLimiter, adminLoginLimiter };
+// AI calls are slow and (with a hosted model) cost money, so every request counts.
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 40,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: tooMany('Too many AI requests. Please wait a few minutes.')
+});
+
+module.exports = { authLimiter, otpVerifyLimiter, adminLoginLimiter, aiLimiter };

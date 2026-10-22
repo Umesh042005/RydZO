@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { missingBookingDocs } = require('../utils/bookingEligibility');
 const Notification = require('../models/Notification');
 
 // Helper to notify admins
@@ -38,8 +39,21 @@ exports.getProfile = async (req, res) => {
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, email, address, profileImage } = req.body;
+    const { name, email, address, profileImage, phone } = req.body;
     const user = await User.findById(req.user._id);
+
+    // Google sign-in accounts start without a phone; they add it here (e.g. at booking).
+    if (phone !== undefined && phone !== user.phone) {
+      const normalized = String(phone).replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(normalized)) {
+        return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number' });
+      }
+      const taken = await User.exists({ phone: normalized, _id: { $ne: user._id } });
+      if (taken) {
+        return res.status(400).json({ message: 'This phone number is already used by another account' });
+      }
+      user.phone = normalized;
+    }
 
     if (name) user.name = name;
     if (email) user.email = email;
@@ -193,34 +207,40 @@ exports.uploadCustomerIdentity = async (req, res) => {
   }
 };
 
-// @desc    Upload customer profile photo (Verification)
-// @route   POST /api/users/customer/profile-photo
-// @access  Private (Customer)
+// @desc    Upload profile photo (any role). For customers the photo is part of
+//          verification, so it goes back to admin review.
+// @route   POST /api/users/profile-photo  (also /api/users/customer/profile-photo)
+// @access  Private
 exports.uploadCustomerProfilePhoto = async (req, res) => {
   try {
-    if (req.user.role !== 'customer') {
-      return res.status(403).json({ message: 'Access denied. Customer only.' });
-    }
-
     if (!req.file) {
       return res.status(400).json({ message: 'Please upload a photo' });
+    }
+    if (!/^image\//.test(req.file.mimetype || '') && !/\.(jpe?g|png|webp)$/i.test(req.file.originalname || '')) {
+      return res.status(400).json({ message: 'Profile photo must be a JPG, PNG or WEBP image' });
     }
 
     const result = await uploadToCloudinary(req.file.path, 'rydzo/profiles');
 
     const user = await User.findById(req.user._id);
     user.profileImage = result.secure_url;
-    user.profilePhotoStatus = 'pending';
-    user.customerApprovalStatus = 'pending';
+
+    const isCustomer = user.role === 'customer';
+    if (isCustomer) {
+      user.profilePhotoStatus = 'pending';
+      user.customerApprovalStatus = 'pending';
+    }
 
     await user.save();
 
-    await notifyAdmins(`New Profile Photo uploaded by ${req.user.name}`, req.user._id);
+    if (isCustomer) {
+      await notifyAdmins(`New Profile Photo uploaded by ${req.user.name}`, req.user._id);
+    }
 
     res.json({
       message: 'Profile photo uploaded successfully',
       url: result.secure_url,
-      status: 'pending'
+      status: isCustomer ? 'pending' : 'approved'
     });
   } catch (error) {
     console.error('Upload profile photo error:', error);
@@ -387,9 +407,14 @@ exports.getCustomerStatus = async (req, res) => {
         url: user.profileImage,
         rejectionReason: user.profilePhotoRejectionReason
       },
+      phone: user.phone || null,
+      drivingLicenseNumber: user.drivingLicense?.number || null,
       approvalStatus: user.customerApprovalStatus,
       approvalNote: user.customerApprovalNote,
-      canBook: user.customerApprovalStatus === 'approved'
+      // Booking needs the documents; admin approval is checked later, before the ride.
+      missingForBooking: user.customerApprovalStatus === 'approved' ? [] : missingBookingDocs(user),
+      canBook: user.customerApprovalStatus === 'approved' ||
+        (user.customerApprovalStatus !== 'rejected' && missingBookingDocs(user).length === 0)
     };
 
     res.json(status);

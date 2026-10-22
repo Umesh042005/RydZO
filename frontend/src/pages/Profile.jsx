@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { FiUpload, FiCheckCircle, FiAlertCircle, FiClock, FiEye, FiLogOut } from 'react-icons/fi';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 const Profile = () => {
   const { user, loading: authLoading, logout } = useAuth();
@@ -192,7 +193,7 @@ const Profile = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="flex justify-center items-center h-[80vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
@@ -203,7 +204,7 @@ const Profile = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="flex justify-center items-center h-[80vh]">
           <div className="text-center">
@@ -218,33 +219,13 @@ const Profile = () => {
   // --- CUSTOMER VIEW ---
   if (user?.role === 'customer') {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="min-h-screen pb-20">
         <Navbar />
 
         {/* Header */}
         <div className="max-w-md mx-auto mt-8 mb-6 px-4">
           <div className="flex flex-col items-center gap-4">
-            <div className="relative flex justify-center items-center">
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg">
-                <img
-                  src={profile?.profileImage || 'https://via.placeholder.com/150'}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 border shadow-sm cursor-pointer hover:bg-gray-100 transition-colors">
-                <label htmlFor="upload-profilePhoto" className="cursor-pointer text-gray-700">
-                  <FiUpload size={16} />
-                </label>
-                <input
-                  type="file"
-                  id="upload-profilePhoto"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => e.target.files[0] && handleFileUpload('profilePhoto', e.target.files[0])}
-                />
-              </div>
-            </div>
+            <ProfileAvatar name={profile?.name} imageUrl={profile?.profileImage} onUploaded={fetchData} />
             <div className="text-center">
               <h1 className="text-2xl font-bold text-gray-900">{profile?.name}</h1>
               <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold mt-2 
@@ -351,17 +332,13 @@ const Profile = () => {
   // --- ADMIN VIEW ---
   if (user?.role === 'admin') {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="min-h-screen pb-20">
         <Navbar />
         <div className="max-w-md mx-auto mt-12 px-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
             {/* Profile Photo */}
-            <div className="w-24 h-24 mx-auto rounded-full overflow-hidden border-4 border-white shadow-lg mb-4">
-              <img
-                src={profile?.profileImage || 'https://via.placeholder.com/150'}
-                alt="Admin Profile"
-                className="w-full h-full object-cover"
-              />
+            <div className="flex justify-center mb-4">
+              <ProfileAvatar name={profile?.name} imageUrl={profile?.profileImage} onUploaded={fetchData} />
             </div>
 
             {/* Name & Email */}
@@ -384,7 +361,7 @@ const Profile = () => {
 
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-green -50 text-green-600 border border-green-200 rounded-xl font-semibold hover:bg-green-100 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-green-50 text-green-600 border border-green-200 rounded-xl font-semibold hover:bg-green-100 transition-colors"
               >
                 <FiLogOut />
                 Sign Out
@@ -398,15 +375,11 @@ const Profile = () => {
   // --- OWNER VIEW ---
   if (user?.role === 'owner') {
     return (
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-4xl mx-auto px-4 py-12">
           <div className="flex items-center gap-6 mb-8">
-            <img
-              src={profile?.profileImage || 'https://via.placeholder.com/150'}
-              alt="Profile"
-              className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
-            />
+            <ProfileAvatar name={profile?.name} imageUrl={profile?.profileImage} onUploaded={fetchData} />
             <div>
               <h1 className="text-4xl font-bold text-neutral-900">{profile?.name}</h1>
               <p className="text-neutral-500">{profile?.email}</p>

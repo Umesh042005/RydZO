@@ -1,8 +1,8 @@
-# RYDZO - Bike Rental Platform
+# RydZO - Bike Rental Platform
 
 ## Project Overview
 
-RYDZO is a secure and reliable bike rental aggregator platform designed to connect bike owners with customers. It facilitates seamless booking, identity verification, and secure rental agreements.
+RydZO is a secure and reliable bike rental aggregator platform designed to connect bike owners with customers. It facilitates seamless booking, identity verification, and secure rental agreements.
 
 This project is built as a college-level submission, focusing on a clean architecture, role-based access control, and essential features for a rental marketplace.
 
@@ -41,7 +41,7 @@ This project is built as a college-level submission, focusing on a clean archite
 ## 📂 Project Structure
 
 ```
-RydZo/
+RydZO/
 ├── backend/
 │   ├── models/            # Database schemas (User, Bike, Booking, Agreement)
 │   ├── routes/            # API endpoints
@@ -74,7 +74,7 @@ RydZo/
 1.  **Clone the repository:**
     ```bash
     git clone <repository_url>
-    cd RydZo
+    cd RydZO
     ```
 
 2.  **Install Backend Dependencies:**
@@ -108,6 +108,36 @@ RydZo/
 5.  **Run the Application:**
     - **Backend:** `cd backend && npm run dev`
     - **Frontend:** `cd frontend && npm start`
+
+---
+
+## 🤖 AI Features
+
+| Feature | Who | Where |
+|---|---|---|
+| **Listing assistant**: writes the bike description and suggests ₹/hour and ₹/day prices from similar listings | Owner | List Your Bike → "✨ Write with AI + suggest price" |
+| **Damage check**: compares return photos with the listing/handover photos, flags new damage and estimates repair cost | Owner (admin sees report) | Booking details, once the ride has started |
+| **Document check**: reads RC / insurance / PUC and driving licence, flags number, name and expiry mismatches | Admin | Admin panel → bike / customer details → "Run check" |
+| **Ride assistant**: chat that searches available bikes and answers booking questions | Customers & visitors | Floating "Ask RydZO AI" button |
+
+The backend talks to the AI through the Ollama chat API. By default it uses **Ollama Cloud**, so nothing has to run locally.
+
+**Setup (Ollama Cloud):**
+1. Create a key at <https://ollama.com/settings/keys>.
+2. Pick models from <https://ollama.com/search?c=cloud>: one for text and tool calling, and one that accepts images (vision).
+3. Add to `backend/.env` and restart the backend:
+   ```
+   AI_API_URL=https://ollama.com/api/chat
+   AI_API_KEY=your-key-here
+   AI_MODEL=gpt-oss:20b
+   AI_VISION_MODEL=gemma4:31b
+   ```
+
+Without `AI_API_KEY` the AI buttons stay hidden. To use a local Ollama instead, set
+`AI_API_URL=http://localhost:11434/api/chat` (no key needed). `AI_ENABLED=false` turns all AI features off,
+and `AI_TIMEOUT_MS` (default 180000) controls how long to wait for an answer.
+
+Note: the Ollama Cloud free plan runs one request at a time; others wait in a queue.
 
 ---
 

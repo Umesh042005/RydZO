@@ -111,7 +111,20 @@ const bookingSchema = new mongoose.Schema({
     endPhotos: [String],
     damageReported: { type: Boolean, default: false },
     damageDescription: String,
-    adminReviewed: { type: Boolean, default: false }
+    adminReviewed: { type: Boolean, default: false },
+    // AI comparison of return photos vs. before photos (a draft for owner/admin, not a verdict)
+    aiReport: {
+      newDamageFound: Boolean,
+      severity: { type: String, enum: ['none', 'minor', 'moderate', 'severe'] },
+      confidence: { type: String, enum: ['low', 'medium', 'high'] },
+      findings: [{ area: String, description: String, _id: false }],
+      estimatedRepairCost: Number,
+      summary: String,
+      comparedBefore: [String],
+      comparedAfter: [String],
+      model: String,
+      checkedAt: Date
+    }
   },
   // Payment (future integration)
   paymentStatus: {

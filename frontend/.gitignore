@@ -5,3 +5,6 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Local overrides (e.g. point the dev server at a local backend)
+.env*.local

@@ -1,162 +1,204 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { FiPackage, FiShield, FiMapPin, FiCheckCircle } from 'react-icons/fi';
+import Footer from '../components/Footer';
+import api from '../services/api';
+import { FiShield, FiMapPin, FiFileText, FiCheckCircle, FiArrowRight, FiStar } from 'react-icons/fi';
+
+const FEATURES = [
+  { icon: FiShield, title: 'Verified Users', text: 'Every owner and rider is verified with documents and admin approval.' },
+  { icon: FiMapPin, title: 'Live Tracking', text: 'Real-time GPS tracking during the rental with geo-fencing.' },
+  { icon: FiFileText, title: 'Fully Transparent', text: 'See bike documents, insurance status and owner details before you book.' },
+  { icon: FiCheckCircle, title: 'Digital Agreement', text: 'A clear digital rental agreement protects both sides on every ride.' },
+];
+
+const STEPS = [
+  { title: 'Get Verified', text: 'Upload your licence and ID. Our team approves you quickly.' },
+  { title: 'Browse & Book', text: 'Pick a bike, check its documents and send a booking request.' },
+  { title: 'Ride & Return', text: 'Meet the owner, accept the agreement, ride, and return.' },
+];
+
+const bikeImage = (bike) => bike?.images?.frontView || bike?.images?.sideView || bike?.images?.backView;
 
 const Home = () => {
+  const [bikes, setBikes] = useState([]);
+
+  useEffect(() => {
+    api.get('/api/bikes')
+      .then((res) => setBikes((res.data || []).filter(bikeImage).slice(0, 3)))
+      .catch(() => setBikes([]));
+  }, []);
+
+  const [hero, ...others] = bikes;
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <Navbar />
-      
-      {/* Hero Section */}
-      <section className="bg-white py-20 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              <span className="text-neutral-900">EXPLORE</span>{' '}
-              <span className="text-primary-700">MORE</span>
-              <br />
-              <span className="text-neutral-900">PAY</span>{' '}
-              <span className="text-primary-700">LESS</span>
-              <br />
-              <span className="text-neutral-900">RENT BIKES</span>{' '}
-              <span className="text-primary-700">EASILY</span>
+
+      {/* Hero */}
+      <section className="relative">
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -top-40 right-[-10%] w-[36rem] h-[36rem] rounded-full bg-primary-500/20 blur-3xl" />
+          <div className="absolute top-40 -left-40 w-[28rem] h-[28rem] rounded-full bg-emerald-500/10 blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage: 'linear-gradient(rgb(255 255 255) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255) 1px, transparent 1px)',
+              backgroundSize: '48px 48px',
+              maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
+              WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)'
+            }}
+          />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-20 md:pt-24 md:pb-28 grid lg:grid-cols-2 gap-14 items-center">
+          <div className="animate-fade-up text-center lg:text-left">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 text-primary-300 text-xs font-semibold tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse" />
+              Peer-to-peer bike rentals
+            </span>
+            <h1 className="mt-6 font-display text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.02] text-neutral-900">
+              Explore more.<br />
+              Pay less.<br />
+              <span className="text-gradient">Ride easy.</span>
             </h1>
-            <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-              Person-to-person bike rental platform with complete transparency, verification, and live tracking
+            <p className="mt-6 text-lg text-neutral-600 max-w-xl mx-auto lg:mx-0">
+              Rent verified bikes straight from local owners, with digital agreements, insurance status upfront and live ride tracking.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="mt-9 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
               <Link to="/bikes" className="btn-primary text-lg px-8 py-4">
-                Rent a Bike
+                Rent a Bike <FiArrowRight />
               </Link>
               <Link to="/register" className="btn-secondary text-lg px-8 py-4">
                 Become an Owner
               </Link>
             </div>
+            <div className="mt-10 flex items-center gap-8 justify-center lg:justify-start text-sm">
+              <div>
+                <p className="font-display text-2xl font-bold text-neutral-900">100%</p>
+                <p className="text-neutral-500">Verified owners</p>
+              </div>
+              <div className="w-px h-10 bg-neutral-200" />
+              <div>
+                <p className="font-display text-2xl font-bold text-neutral-900">Hourly</p>
+                <p className="text-neutral-500">or daily plans</p>
+              </div>
+              <div className="w-px h-10 bg-neutral-200" />
+              <div>
+                <p className="font-display text-2xl font-bold text-neutral-900">10%</p>
+                <p className="text-neutral-500">flat platform fee</p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="absolute bottom-0 left-0 w-full h-32 overflow-hidden">
-          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-            <path d="M0,60 C240,20 480,100 720,60 C960,20 1200,100 1440,60 L1440,120 L0,120 Z" fill="#dcfce7" fillOpacity="0.6"/>
-            <path d="M0,80 C240,40 480,120 720,80 C960,40 1200,120 1440,80 L1440,120 L0,120 Z" fill="#bbf7d0" fillOpacity="0.4"/>
-          </svg>
+
+          {/* Live bikes preview */}
+          <div className="relative hidden sm:block animate-fade-up" style={{ animationDelay: '0.15s' }}>
+            <div className="absolute -inset-6 bg-gradient-to-tr from-primary-500/20 to-transparent rounded-[2rem] blur-2xl" />
+            {hero ? (
+              <div className="relative">
+                <Link to={`/bikes/${hero._id}`} className="block card !p-3 hover:shadow-glow">
+                  <img src={bikeImage(hero)} alt={`${hero.brand} ${hero.model}`} className="w-full h-72 object-cover rounded-xl" />
+                  <div className="flex items-center justify-between px-2 pt-4 pb-1">
+                    <div>
+                      <p className="font-display text-lg font-semibold text-neutral-900">{hero.brand} {hero.model}</p>
+                      <p className="text-sm text-neutral-500 truncate max-w-[16rem]">{hero.handoverLocation?.address || 'Available now'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display text-2xl font-bold text-primary-400">₹{hero.pricing?.hourly}<span className="text-sm text-neutral-500 font-sans">/hr</span></p>
+                    </div>
+                  </div>
+                </Link>
+                {others.length > 0 && (
+                  <div className="absolute -bottom-20 -left-8 flex gap-3 animate-float">
+                    {others.map((bike) => (
+                      <Link key={bike._id} to={`/bikes/${bike._id}`} className="glass rounded-2xl p-2 pr-4 flex items-center gap-3 shadow-card hover:border-primary-500/50">
+                        <img src={bikeImage(bike)} alt="" className="w-14 h-14 rounded-xl object-cover" />
+                        <div className="text-xs">
+                          <p className="font-semibold text-neutral-900 truncate max-w-[8rem]">{bike.brand} {bike.model}</p>
+                          <p className="text-primary-400 font-bold">₹{bike.pricing?.daily}/day</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="relative card h-96 flex flex-col items-center justify-center text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-primary-500/15 flex items-center justify-center">
+                  <FiStar className="text-primary-400 text-2xl" />
+                </div>
+                <p className="font-display text-xl font-semibold text-neutral-900">Bikes near you</p>
+                <p className="text-neutral-500 text-sm max-w-xs">Scooters, commuters and cruisers from verified local owners.</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 bg-white">
+      {/* Features */}
+      <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-center text-neutral-900 mb-12">
-            Why Choose RYDZO?
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiShield className="text-primary-700 text-2xl" />
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <p className="text-primary-400 font-semibold text-sm uppercase tracking-widest">Why RydZO</p>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl font-bold text-neutral-900">Built on trust, made for riders</h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {FEATURES.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="card group hover:-translate-y-1 hover:border-primary-500/40 hover:shadow-glow">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500/25 to-emerald-500/5 border border-primary-500/30 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                  <Icon className="text-primary-300 text-xl" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-neutral-900 mb-2">{title}</h3>
+                <p className="text-neutral-600 text-sm leading-relaxed">{text}</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Verified Users</h3>
-              <p className="text-neutral-600">
-                All owners and customers are verified with documents and admin approval
-              </p>
-            </div>
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiMapPin className="text-primary-700 text-2xl" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <p className="text-primary-400 font-semibold text-sm uppercase tracking-widest">How it works</p>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl font-bold text-neutral-900">On the road in 3 steps</h2>
+          </div>
+          <div className="relative grid md:grid-cols-3 gap-6">
+            <div className="hidden md:block absolute top-7 left-[16%] right-[16%] h-px bg-gradient-to-r from-transparent via-primary-500/50 to-transparent" />
+            {STEPS.map((step, i) => (
+              <div key={step.title} className="relative text-center px-4">
+                <div className="relative mx-auto w-14 h-14 rounded-2xl bg-ink border border-primary-500/40 shadow-glow flex items-center justify-center font-display text-xl font-bold text-primary-300">
+                  {i + 1}
+                </div>
+                <h3 className="mt-5 font-display text-xl font-semibold text-neutral-900">{step.title}</h3>
+                <p className="mt-2 text-neutral-600 text-sm">{step.text}</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Live Tracking</h3>
-              <p className="text-neutral-600">
-                Real-time GPS tracking during rental period with geo-fencing
-              </p>
-            </div>
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiPackage className="text-primary-700 text-2xl" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Owner CTA */}
+      <section className="py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-3xl border border-primary-500/30 bg-gradient-to-br from-primary-900/60 via-ink to-ink p-10 md:p-14">
+            <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-primary-500/25 blur-3xl" />
+            <div className="relative md:flex items-center justify-between gap-10">
+              <div className="max-w-xl">
+                <h2 className="font-display text-3xl md:text-4xl font-bold text-neutral-900">Your bike sits idle? Let it earn.</h2>
+                <p className="mt-3 text-neutral-600">List it in minutes, approve every request yourself and get paid directly by riders.</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Transparent</h3>
-              <p className="text-neutral-600">
-                View all bike documents, insurance status, and owner details before booking
-              </p>
-            </div>
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiCheckCircle className="text-primary-700 text-2xl" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Digital Agreement</h3>
-              <p className="text-neutral-600">
-                Mandatory digital agreement with clear terms and conditions
-              </p>
+              <Link to="/register" className="btn-primary mt-8 md:mt-0 text-lg px-8 py-4 whitespace-nowrap">
+                Start earning <FiArrowRight />
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-center text-neutral-900 mb-12">
-            How It Works
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary-700 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-                1
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Get Verified</h3>
-              <p className="text-neutral-600">
-                Upload your documents and get verified by our admin team
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary-700 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-                2
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Browse & Book</h3>
-              <p className="text-neutral-600">
-                Find your perfect bike, check documents, and make a booking
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary-700 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-                3
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Ride & Return</h3>
-              <p className="text-neutral-600">
-                Meet owner, accept agreement, ride safely, and return the bike
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Disclaimer */}
-      <section className="py-12 bg-neutral-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-neutral-700 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-3">Important Disclaimer</h3>
-            <p className="text-neutral-300 mb-2">
-              RYDZO acts only as an aggregator/platform. Vehicle ownership remains with the owner. 
-              Bike delivery and return are handled directly by the owner and customer. 
-              RYDZO is not responsible for vehicle condition, handover, or any incidents.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-primary-800 text-white py-5 relative overflow-hidden">
-        <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
-          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-            <path d="M0,40 C240,0 480,80 720,40 C960,0 1200,80 1440,40 L1440,120 L0,120 Z" fill="#14532d" fillOpacity="0.3"/>
-            <path d="M0,60 C240,20 480,100 720,60 C960,20 1200,100 1440,60 L1440,120 L0,120 Z" fill="#166534" fillOpacity="0.2"/>
-          </svg>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <p>&copy; 2024 RYDZO. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };
 
 export default Home;
-

@@ -57,7 +57,7 @@ const agreementTemplate = (bookingDetails, bikeDetails, ownerDetails) => {
   const generatedAt = formatDateTimeIST(bookingDetails.createdAt || new Date());
 
   return `
-DIGITAL RENTAL AGREEMENT - RYDZO
+DIGITAL RENTAL AGREEMENT - RydZO
 
 This agreement is entered into between:
 Owner: ${ownerDetails.name} (${ownerDetails.phone})
@@ -84,7 +84,7 @@ RENTAL TERMS AND CONDITIONS:
 4. BIKE HANDOVER
    - Bike will be provided directly by the owner at agreed location
    - Owner is responsible for physical handover and pickup
-   - RYDZO is only an aggregator and not responsible for handover
+   - RydZO is only an aggregator and not responsible for handover
 
 5. INSURANCE STATUS
    - Insurance Status: ${bikeDetails.insuranceStatus}
@@ -115,9 +115,9 @@ RENTAL TERMS AND CONDITIONS:
    - Deductions may be made for damages, late returns, or violations
 
 10. PLATFORM DISCLAIMER (OWNER NOT AT FAULT)
-   - RYDZO acts only as an aggregator/platform
+   - RydZO acts only as an aggregator/platform
    - Vehicle ownership remains with the owner
-   - RYDZO is not responsible for vehicle condition, handover, or any incidents
+   - RydZO is not responsible for vehicle condition, handover, or any incidents
    - Owner is not responsible for any loss/damage caused during the rental period after handover
    - All disputes will be resolved through admin review
 

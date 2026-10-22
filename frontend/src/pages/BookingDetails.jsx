@@ -11,6 +11,8 @@ import OSMMapView from '../components/maps/osm/OSMMapView';
 import { calculateRouteFromCurrentLocation as googleRouteCalc } from '../services/routesService';
 import { calculateRouteFromCurrentLocation as osmRouteCalc } from '../services/osm/osmRoutesService';
 import { isOsmProvider } from '../config/mapProvider';
+import DamageCheck from '../components/ai/DamageCheck';
+import { useAIEnabled } from '../services/ai';
 
 const ActiveMapView = isOsmProvider() ? OSMMapView : GoogleMapView;
 const calculateRouteFromCurrentLocation = isOsmProvider() ? osmRouteCalc : googleRouteCalc;
@@ -19,6 +21,7 @@ const BookingDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const aiEnabled = useAIEnabled();
   const [booking, setBooking] = useState(null);
   const [agreement, setAgreement] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -252,7 +255,7 @@ const BookingDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">Loading...</div>
@@ -263,7 +266,7 @@ const BookingDetails = () => {
 
   if (!booking) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">Booking not found</div>
@@ -273,7 +276,7 @@ const BookingDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen">
       <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-12">
         {user?.role === 'admin' && (
@@ -387,6 +390,22 @@ const BookingDetails = () => {
                   Accepted on {new Date(agreement.acceptedAt).toLocaleString()}
                 </p>
               </div>
+            ) : user?.role !== 'customer' ? (
+              // Only the renter signs the agreement; owners and admins just see where it stands.
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg">
+                  <FiClock className="shrink-0" />
+                  <span className="text-sm font-medium">Waiting for the customer to accept the agreement.</span>
+                </div>
+                <details className="group">
+                  <summary className="cursor-pointer text-sm font-semibold text-primary-700 select-none">
+                    View agreement text
+                  </summary>
+                  <div className="bg-neutral-100 p-4 rounded-lg mt-3 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm">{agreement.agreementText}</pre>
+                  </div>
+                </details>
+              </div>
             ) : (
               <div>
                 <div className="bg-neutral-100 p-4 rounded-lg mb-4 max-h-96 overflow-y-auto">
@@ -463,7 +482,7 @@ const BookingDetails = () => {
                       onChange={(e) => setConsentFlags({ ...consentFlags, aggregatorDisclaimer: e.target.checked })}
                       className="w-5 h-5"
                     />
-                    <span>I understand RYDZO is only an aggregator *</span>
+                    <span>I understand RydZO is only an aggregator *</span>
                   </label>
                 </div>
                 <button
@@ -570,6 +589,16 @@ const BookingDetails = () => {
         {user?.role === 'owner' && (
           <div className="card mb-6">
             <h2 className="text-2xl font-semibold mb-4">Owner Actions</h2>
+
+            {['pending', 'confirmed'].includes(booking.status) && booking.customer?.customerApprovalStatus !== 'approved' && (
+              <div className="flex gap-2 items-start mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                <FiClock className="shrink-0 mt-0.5" />
+                <span>
+                  The rider's documents are still being checked by RydZO. You can accept the request and hand over
+                  the bike once they are approved.
+                </span>
+              </div>
+            )}
 
             {booking.status === 'pending' && booking.isSentToOwner && booking.ownerDecision?.status === 'pending' && (
               <div className="flex gap-3">
@@ -689,6 +718,15 @@ const BookingDetails = () => {
               </div>
             )}
           </div>
+        )}
+
+        {aiEnabled && ['ongoing', 'completed', 'disputed'].includes(booking.status) &&
+          (user?.role === 'owner' || user?.role === 'admin') && (
+          <DamageCheck
+            booking={booking}
+            canRun={user?.role === 'owner'}
+            onUpdated={fetchBookingDetails}
+          />
         )}
 
         {/* Admin Actions */}

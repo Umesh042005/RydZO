@@ -39,9 +39,14 @@ router.post('/customer/selfie', auth, uploadSingle('selfie'), uploadSelfie);
 // @access  Private (Customer)
 router.post('/customer/identity', auth, uploadSingle('document'), uploadCustomerIdentity);
 
+// @route   POST /api/users/profile-photo
+// @desc    Upload profile photo (customer, owner or admin)
+// @access  Private
+router.post('/profile-photo', auth, uploadSingle('profilePhoto'), uploadCustomerProfilePhoto);
+
 // @route   POST /api/users/customer/profile-photo
-// @desc    Upload customer profile photo
-// @access  Private (Customer)
+// @desc    Older path for the same upload, kept for existing clients
+// @access  Private
 router.post('/customer/profile-photo', auth, uploadSingle('profilePhoto'), uploadCustomerProfilePhoto);
 
 // @route   POST /api/users/owner/documents

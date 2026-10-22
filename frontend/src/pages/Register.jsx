@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import GoogleAuthButton from '../components/GoogleAuthButton';
 import Navbar from "../components/Navbar";
 import { FiUser, FiMail, FiPhone, FiLock } from "react-icons/fi";
 import toast from "react-hot-toast";
@@ -107,7 +108,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <Navbar />
 
       <div className="max-w-md mx-auto px-4 py-12">
@@ -206,6 +207,14 @@ const Register = () => {
               {loading ? "Creating Account..." : "Create Account"}
             </button>
           </form>
+
+          <GoogleAuthButton role={formData.role} text="signup_with" />
+          {process.env.REACT_APP_GOOGLE_CLIENT_ID && (
+            <p className="mt-3 text-center text-xs text-neutral-500">
+              With Google you sign up as {formData.role === 'owner' ? 'a bike owner' : 'a rider'} (change it in "I want to" above).
+              {formData.role !== 'owner' && ' We ask for your licence and ID when you make your first booking.'}
+            </p>
+          )}
         </div>
       </div>
     </div>
